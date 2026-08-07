@@ -66,3 +66,4 @@ backend/generated/
 
 # Misc
 *.seed
+/generated/prisma

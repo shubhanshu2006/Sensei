@@ -1,0 +1,498 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  RECRUITER
+  CANDIDATE
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model User {
+  id            String        @id @default(uuid())
+  clerkId       String        @unique
+  email         String        @unique
+  firstName     String?
+  lastName      String?
+  avatar        String?
+  role          UserRole
+  status        AccountStatus @default(ACTIVE)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  recruiterProfile RecruiterProfile?
+  candidateProfile CandidateProfile?
+  adminProfile     AdminProfile?
+  
+  @@index([clerkId])
+  @@index([email])
+  @@index([role])
+}
+
+enum SubscriptionPlan {
+  FREE_TRIAL
+  BASIC
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model RecruiterProfile {
+  id                    String              @id @default(uuid())
+  userId                String              @unique
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  companyName           String
+  companyWebsite        String?
+  companySize           String?
+  industry              String?
+  designation           String?
+  phoneNumber           String?
+  
+  interviewCredits      Int                 @default(0)
+  freeTrialUsed         Boolean             @default(false)
+  freeTrialCredits      Int                 @default(5)
+  
+  subscriptionPlan      SubscriptionPlan    @default(FREE_TRIAL)
+  subscriptionStatus    SubscriptionStatus  @default(ACTIVE)
+  subscriptionStartDate DateTime?
+  subscriptionEndDate   DateTime?
+  
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  jobs                  Job[]
+  payments              Payment[]
+  subscriptions         Subscription[]
+  
+  @@index([userId])
+}
+model CandidateProfile {
+  id                      String              @id @default(uuid())
+  userId                  String              @unique
+  user                    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  phoneNumber             String?
+  location                String?
+  experience              Int?                // Years
+  currentCompany          String?
+  currentDesignation      String?
+  
+  resumeUrl               String?
+  resumeFileName          String?
+  resumeUploadedAt        DateTime?
+  
+  githubUrl               String?
+  portfolioUrl            String?
+  linkedinUrl             String?
+  
+  practiceCredits         Int                 @default(2)  // Free trial
+  practiceCreditsUsed     Int                 @default(0)
+  
+  deviceFingerprint       String?             // For abuse prevention
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  applications            Application[]
+  interviewSessions       InterviewSession[]
+  
+  @@index([userId])
+  @@index([deviceFingerprint])
+}
+
+model AdminProfile {
+  id                      String              @id @default(uuid())
+  userId                  String              @unique
+  user                    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  isSuperAdmin            Boolean             @default(false)
+  permissions             Json?               // Store as JSON array
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  @@index([userId])
+}
+
+enum JobStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum ExperienceLevel {
+  ENTRY_LEVEL
+  MID_LEVEL
+  SENIOR_LEVEL
+  LEAD
+  ARCHITECT
+}
+
+model Job {
+  id                      String              @id @default(uuid())
+  recruiterId             String
+  recruiter               RecruiterProfile    @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  
+  title                   String
+  description             String              @db.Text
+  requiredSkills          Json                // Array of skills
+  preferredSkills         Json?               // Array of skills
+  experienceLevel         ExperienceLevel
+  minExperience           Int?
+  maxExperience           Int?
+  location                String?
+  jobType                 String?             // Full-time, Part-time, Contract
+  salary                  String?
+  
+  status                  JobStatus           @default(DRAFT)
+  
+  // AI Screening Configuration
+  screeningConfig         Json                // { resume: true, github: bool, portfolio: bool }
+  screeningMode           String              @default("ASSISTED") // AUTOMATIC or ASSISTED
+  autoInviteThreshold     Int                 @default(80)         // Match score threshold
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  publishedAt             DateTime?
+  closedAt                DateTime?
+  
+  applications            Application[]
+  
+  @@index([recruiterId])
+  @@index([status])
+  @@index([experienceLevel])
+}
+
+enum PracticeJobDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum PracticeJobCategory {
+  FRONTEND
+  BACKEND
+  FULLSTACK
+  MOBILE
+  DEVOPS
+  DATA_SCIENCE
+  MACHINE_LEARNING
+  SYSTEM_DESIGN
+  PRODUCT_MANAGEMENT
+  OTHER
+}
+
+model PracticeJob {
+  id                      String                  @id @default(uuid())
+  
+  title                   String
+  description             String                  @db.Text
+  category                PracticeJobCategory
+  difficulty              PracticeJobDifficulty
+  requiredSkills          Json                    // Array of skills
+  technologies            Json?                   // Array of technologies
+  
+  estimatedDuration       Int?                    // Minutes
+  isFeatured              Boolean                 @default(false)
+  isPublished             Boolean                 @default(true)
+  
+  practiceCount           Int                     @default(0)  // Analytics
+  averageScore            Float?                  // Analytics
+  
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  
+  interviewSessions       InterviewSession[]
+  
+  @@index([category])
+  @@index([difficulty])
+  @@index([isFeatured])
+  @@index([isPublished])
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  SCREENING_IN_PROGRESS
+  SCREENING_COMPLETED
+  SHORTLISTED
+  REJECTED
+  INTERVIEW_INVITED
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
+  WITHDRAWN
+}
+
+model Application {
+  id                      String              @id @default(uuid())
+  jobId                   String
+  job                     Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidateId             String
+  candidate               CandidateProfile    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  
+  resumeUrl               String
+  coverLetter             String?             @db.Text
+  githubUrl               String?
+  portfolioUrl            String?
+  
+  status                  ApplicationStatus   @default(SUBMITTED)
+  
+  appliedAt               DateTime            @default(now())
+  screeningCompletedAt    DateTime?
+  interviewInvitedAt      DateTime?
+  updatedAt               DateTime            @updatedAt
+  
+  screeningReport         ScreeningReport?
+  interviewSessions       InterviewSession[]
+  
+  @@unique([jobId, candidateId])
+  @@index([jobId])
+  @@index([candidateId])
+  @@index([status])
+}
+
+enum ScreeningDecision {
+  STRONG_MATCH
+  MODERATE_MATCH
+  WEAK_MATCH
+  NOT_SUITABLE
+}
+
+model ScreeningReport {
+  id                      String              @id @default(uuid())
+  applicationId           String              @unique
+  application             Application         @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  overallMatchScore       Int                 // 0-100
+  decision                ScreeningDecision
+  
+  // Detailed Analysis (stored as JSON)
+  skillMatchAnalysis      Json                // { matched: [], missing: [] }
+  experienceAnalysis      Json
+  projectRelevance        Json
+  resumeCredibility       Json
+  
+  aiRecommendation        String              @db.Text
+  screeningFeedback       String?             @db.Text  // For rejected candidates
+  
+  processingTimeMs        Int?                // Performance metric
+  
+  createdAt               DateTime            @default(now())
+  
+  @@index([applicationId])
+  @@index([overallMatchScore])
+  @@index([decision])
+}
+
+enum InterviewType {
+  HIRING
+  PRACTICE
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+  CANCELLED
+}
+
+model InterviewSession {
+  id                      String              @id @default(uuid())
+  
+  // Polymorphic relation - either applicationId OR (candidateId + practiceJobId)
+  interviewType           InterviewType
+  applicationId           String?
+  application             Application?        @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  
+  // For practice interviews
+  candidateId             String?
+  candidate               CandidateProfile?   @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  practiceJobId           String?
+  practiceJob             PracticeJob?        @relation(fields: [practiceJobId], references: [id], onDelete: SetNull)
+  
+  status                  InterviewStatus     @default(SCHEDULED)
+  
+  // Session Data
+  sessionToken            String              @unique  // For WebSocket auth
+  resumeUrl               String
+  jobDescription          String              @db.Text
+  
+  // Interview Progress
+  totalQuestions          Int                 @default(0)
+  questionsAnswered       Int                 @default(0)
+  completionPercentage    Float               @default(0)
+  
+  // Timing
+  scheduledAt             DateTime?
+  startedAt               DateTime?
+  completedAt             DateTime?
+  durationMinutes         Int?
+  
+  // Credit Management
+  creditConsumed          Boolean             @default(false)
+  creditConsumedAt        DateTime?
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  transcript              InterviewTranscript?
+  scorecard               Scorecard?
+  resumeFeedback          ResumeFeedback?
+  
+  @@index([interviewType])
+  @@index([applicationId])
+  @@index([candidateId])
+  @@index([practiceJobId])
+  @@index([status])
+  @@index([sessionToken])
+}
+
+model InterviewTranscript {
+  id                      String              @id @default(uuid())
+  sessionId               String              @unique
+  session                 InterviewSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  conversationHistory     Json                // Array of { role, content, timestamp }
+  rawTranscript           String              @db.Text
+  
+  totalWords              Int?
+  fillerWordCount         Int?
+  averagePaceWPM          Float?              // Words per minute
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  @@index([sessionId])
+}
+
+model Scorecard {
+  id                      String              @id @default(uuid())
+  sessionId               String              @unique
+  session                 InterviewSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  // Overall
+  overallScore            Int                 // 0-100
+  overallRecommendation   String              @db.Text
+  
+  // Dimension Scores (stored as JSON for flexibility)
+  technicalScore          Json                // { score, reasoning }
+  communicationScore      Json
+  problemSolvingScore     Json
+  confidenceScore         Json
+  behavioralScore         Json?
+  starMethodScore         Json?
+  
+  // Detailed Analysis
+  strengths               Json                // Array of strings
+  weaknesses              Json                // Array of strings
+  keyInsights             Json?
+  
+  createdAt               DateTime            @default(now())
+  
+  @@index([sessionId])
+  @@index([overallScore])
+}
+
+model ResumeFeedback {
+  id                      String              @id @default(uuid())
+  sessionId               String              @unique
+  session                 InterviewSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  missingSkills           Json                // Array of skills
+  missingProjects         Json?               // Suggested projects
+  improvementSuggestions  Json                // Array of suggestions
+  resumeOptimization      Json?
+  
+  personalizedRecommendations String?         @db.Text
+  
+  createdAt               DateTime            @default(now())
+  
+  @@index([sessionId])
+}
+
+enum PaymentType {
+  CREDIT_PURCHASE
+  SUBSCRIPTION
+  REFUND
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id                      String              @id @default(uuid())
+  recruiterId             String
+  recruiter               RecruiterProfile    @relation(fields: [recruiterId], references: [id])
+  
+  type                    PaymentType
+  amount                  Decimal             @db.Decimal(10, 2)
+  currency                String              @default("INR")
+  
+  status                  PaymentStatus       @default(PENDING)
+  
+  // Razorpay Details
+  razorpayOrderId         String?
+  razorpayPaymentId       String?
+  razorpaySignature       String?
+  
+  creditsAdded            Int?                // For credit purchases
+  
+  invoiceUrl              String?
+  receiptNumber           String?
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  @@index([recruiterId])
+  @@index([status])
+  @@index([razorpayOrderId])
+}
+
+model Subscription {
+  id                      String              @id @default(uuid())
+  recruiterId             String
+  recruiter               RecruiterProfile    @relation(fields: [recruiterId], references: [id])
+  
+  plan                    SubscriptionPlan
+  status                  SubscriptionStatus
+  
+  startDate               DateTime
+  endDate                 DateTime
+  
+  monthlyCredits          Int
+  creditsRemaining        Int
+  
+  autoRenew               Boolean             @default(true)
+  
+  razorpaySubscriptionId  String?
+  
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  
+  @@index([recruiterId])
+  @@index([status])
+  @@index([endDate])
+}
