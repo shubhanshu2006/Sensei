@@ -267,6 +267,9 @@ model Application {
   @@index([jobId])
   @@index([candidateId])
   @@index([status])
+  @@index([jobId, status]) // Composite index for recruiter filtering by job + status
+  @@index([candidateId, status]) // Composite index for candidate application history
+  @@index([status, appliedAt]) // Composite index for dashboard sorting
 }
 
 enum ScreeningDecision {
@@ -364,6 +367,9 @@ model InterviewSession {
   @@index([practiceJobId])
   @@index([status])
   @@index([sessionToken])
+  @@index([candidateId, status]) // Composite index for candidate interview history
+  @@index([applicationId, status]) // Composite index for recruiter interview tracking
+  @@index([status, createdAt]) // Composite index for admin monitoring
 }
 
 model InterviewTranscript {
@@ -469,6 +475,8 @@ model Payment {
   @@index([recruiterId])
   @@index([status])
   @@index([razorpayOrderId])
+  @@index([recruiterId, createdAt]) // Composite index for payment history pagination
+  @@index([recruiterId, status]) // Composite index for payment filtering
 }
 
 model Subscription {
