@@ -3,7 +3,10 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { recruiterService } from "../services/recruiters.service.js";
-import type { UpdateRecruiterProfileInput } from "../validations/recruiters.validation.js";
+import type {
+  UpdateRecruiterProfileInput,
+  ScheduleInterviewInput,
+} from "../validations/recruiters.validation.js";
 
 // RecruiterController
 
@@ -125,6 +128,33 @@ class RecruiterController {
           stats,
           "Dashboard statistics retrieved successfully",
         ),
+      );
+  });
+
+  /**
+   * POST /recruiters/interviews/schedule
+   *
+   * Schedules a hiring interview for an application.
+   * Deducts 1 interview credit and sends email to candidate.
+   */
+  scheduleInterview = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user || !req.user.recruiterProfileId) {
+      throw new ApiError(401, "Authentication required");
+    }
+
+    const { applicationId, scheduledTime } =
+      req.body as ScheduleInterviewInput;
+
+    const session = await recruiterService.scheduleHiringInterview(
+      applicationId,
+      req.user.recruiterProfileId,
+      new Date(scheduledTime),
+    );
+
+    res
+      .status(201)
+      .json(
+        new ApiResponse(201, session, "Interview scheduled successfully"),
       );
   });
 }

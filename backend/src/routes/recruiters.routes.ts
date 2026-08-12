@@ -6,7 +6,10 @@ import {
   requireRecruiterProfile,
 } from "../middleware/authorization.middleware.js";
 import { validateBody } from "../middleware/validation.middleware.js";
-import { updateRecruiterProfileSchema } from "../validations/recruiters.validation.js";
+import {
+  updateRecruiterProfileSchema,
+  scheduleInterviewSchema,
+} from "../validations/recruiters.validation.js";
 
 const router = Router();
 
@@ -51,5 +54,16 @@ router.get("/subscription", recruiterController.getSubscription);
  * Returns aggregated pipeline stats (jobs, applications, credits).
  */
 router.get("/dashboard", recruiterController.getDashboardStats);
+
+/**
+ * POST /recruiters/interviews/schedule
+ * Schedules a hiring interview for an application.
+ * Deducts 1 interview credit and sends email notification.
+ */
+router.post(
+  "/interviews/schedule",
+  validateBody(scheduleInterviewSchema),
+  recruiterController.scheduleInterview,
+);
 
 export default router;
