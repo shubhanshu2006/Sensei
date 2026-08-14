@@ -340,7 +340,8 @@ model InterviewSession {
   jobDescription          String              @db.Text
   
   // Interview Progress
-  totalQuestions          Int                 @default(0)
+  totalQuestions          Int                 @default(10)
+  currentQuestionIndex    Int                 @default(0)
   questionsAnswered       Int                 @default(0)
   completionPercentage    Float               @default(0)
   
@@ -378,6 +379,7 @@ model InterviewTranscript {
   session                 InterviewSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   
   conversationHistory     Json                // Array of { role, content, timestamp }
+  qaData                  Json?               // Array of { questionIndex, question, answer, timestamp, isVoiceMode, audioDuration }
   rawTranscript           String              @db.Text
   
   totalWords              Int?
