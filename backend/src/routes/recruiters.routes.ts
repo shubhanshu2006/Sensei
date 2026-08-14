@@ -10,6 +10,7 @@ import {
   updateRecruiterProfileSchema,
   scheduleInterviewSchema,
 } from "../validations/recruiters.validation.js";
+import { interviewLimiter } from "../middleware/rateLimiter.middleware.js";
 
 const router = Router();
 
@@ -62,6 +63,7 @@ router.get("/dashboard", recruiterController.getDashboardStats);
  */
 router.post(
   "/interviews/schedule",
+  interviewLimiter,
   validateBody(scheduleInterviewSchema),
   recruiterController.scheduleInterview,
 );

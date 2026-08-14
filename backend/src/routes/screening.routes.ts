@@ -5,6 +5,7 @@ import {
   requireRole,
   requireRecruiterProfile,
 } from "../middleware/authorization.middleware.js";
+import { aiLimiter } from "../middleware/rateLimiter.middleware.js";
 
 // Screening router
 // Mounted at: /api/screening
@@ -16,6 +17,7 @@ const router = Router();
  */
 router.post(
   "/:applicationId/trigger",
+  aiLimiter,
   authenticateUser,
   requireRole("RECRUITER"),
   requireRecruiterProfile,

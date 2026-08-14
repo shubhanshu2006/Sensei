@@ -2,7 +2,10 @@ import { Router } from "express";
 import { authController } from "../controllers/auth.controller.js";
 import { authenticateUser } from "../middleware/auth.middleware.js";
 import { validateBody } from "../middleware/validation.middleware.js";
-import { authLimiter } from "../middleware/rate-limit.middleware.js";
+import {
+  authLimiter,
+  webhookLimiter,
+} from "../middleware/rateLimiter.middleware.js";
 import { signupSchema } from "../validations/auth.validation.js";
 
 const router = Router();
@@ -14,7 +17,7 @@ const router = Router();
  * Receives user lifecycle events from Clerk (user.created / user.updated /
  * user.deleted) and syncs them to the local database.
  */
-router.post("/webhook", authLimiter, authController.handleWebhook);
+router.post("/webhook", webhookLimiter, authController.handleWebhook);
 
 // Authenticated — profile setup and self-lookup
 

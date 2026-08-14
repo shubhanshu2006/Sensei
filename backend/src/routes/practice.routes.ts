@@ -19,6 +19,7 @@ import {
   practiceQuerySchema,
   startPracticeInterviewSchema,
 } from "../validations/practice.validation.js";
+import { interviewLimiter } from "../middleware/rateLimiter.middleware.js";
 
 const router = Router();
 
@@ -82,6 +83,7 @@ router.patch(
  */
 router.post(
   "/:id/start",
+  interviewLimiter,
   authenticateUser,
   requireRole("CANDIDATE"),
   requireCandidateProfile,
