@@ -34,8 +34,7 @@ export const startInterviewSchema = z
 
 /**
  * Body for submitting an answer to an interview question.
- * Used by the WebSocket gateway in Phase 4; included here for REST fallback
- * and validation consistency.
+ * Used by the WebSocket gateway for real-time interviews.
  */
 export const submitAnswerSchema = z.object({
   sessionToken: z.string().min(1, "sessionToken is required"),

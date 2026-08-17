@@ -51,3 +51,18 @@ export const updateRecruiterProfileSchema = z
 export type UpdateRecruiterProfileInput = z.infer<
   typeof updateRecruiterProfileSchema
 >;
+
+// Schedule interview schema
+
+export const scheduleInterviewSchema = z.object({
+  applicationId: z.string().uuid("Invalid application ID format"),
+  scheduledTime: z
+    .string()
+    .datetime("Scheduled time must be a valid ISO 8601 datetime")
+    .refine(
+      (val) => new Date(val) > new Date(),
+      "Scheduled time must be in the future",
+    ),
+});
+
+export type ScheduleInterviewInput = z.infer<typeof scheduleInterviewSchema>;

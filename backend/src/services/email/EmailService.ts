@@ -175,6 +175,81 @@ export class EmailService {
     });
   }
 
+  async sendScreeningCompletedRecruiter(input: {
+    recruiterEmail: string;
+    recruiterName: string;
+    candidateName: string;
+    jobTitle: string;
+    score: number;
+    decision: string;
+    applicationId: string;
+  }): Promise<void> {
+    const htmlBody = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Candidate Screening Complete</h2>
+        <p>Hi ${input.recruiterName},</p>
+        <p>AI screening has been completed for <strong>${input.candidateName}</strong> applying for <strong>${input.jobTitle}</strong>.</p>
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <p style="margin: 0;"><strong>Match Score:</strong> ${input.score}/100</p>
+          <p style="margin: 10px 0 0 0;"><strong>Decision:</strong> ${input.decision.replace(/_/g, " ")}</p>
+        </div>
+        <p>Review the detailed screening report and candidate profile in your dashboard.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="https://app.sensei.ai/recruiter/applications/${input.applicationId}" style="background-color: #4F46E5; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            View Application
+          </a>
+        </div>
+        <p>The Sensei AI Team</p>
+      </div>
+    `;
+
+    await this.sendEmail({
+      to: input.recruiterEmail,
+      subject: `Screening Complete - ${input.candidateName} for ${input.jobTitle}`,
+      htmlBody,
+    });
+  }
+
+  async sendScreeningCompletedCandidate(input: {
+    candidateEmail: string;
+    candidateName: string;
+    jobTitle: string;
+    feedback?: string;
+  }): Promise<void> {
+    const htmlBody = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Application Update</h2>
+        <p>Hi ${input.candidateName},</p>
+        <p>Thank you for applying for the <strong>${input.jobTitle}</strong> position.</p>
+        <p>After careful review of your application, we've decided not to move forward at this time.</p>
+        ${
+          input.feedback
+            ? `
+        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 25px 0; border-radius: 4px;">
+          <p style="margin: 0;"><strong>Feedback:</strong></p>
+          <p style="margin: 10px 0 0 0;">${input.feedback}</p>
+        </div>
+        `
+            : ""
+        }
+        <p>We encourage you to:</p>
+        <ul>
+          <li>Continue improving your skills based on the feedback</li>
+          <li>Apply to other positions that match your expertise</li>
+          <li>Use our practice interview feature to enhance your performance</li>
+        </ul>
+        <p>Best wishes in your job search!</p>
+        <p>The Sensei AI Team</p>
+      </div>
+    `;
+
+    await this.sendEmail({
+      to: input.candidateEmail,
+      subject: `Application Update - ${input.jobTitle}`,
+      htmlBody,
+    });
+  }
+
   private stripHtml(html: string): string {
     return html
       .replace(/<[^>]*>/g, "")

@@ -30,8 +30,7 @@ export const verifyPaymentSchema = z.object({
 /**
  * Minimal schema for Razorpay webhook payloads.
  * Webhook bodies are raw JSON; we only assert `event` is present here.
- * Full payload validation happens inside the service after signature
- * verification (Phase 5).
+ * Full payload validation happens inside the service after signature verification.
  */
 export const webhookSchema = z.object({
   event: z.string().min(1, "event is required"),
