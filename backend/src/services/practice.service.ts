@@ -50,9 +50,31 @@ export class PracticeService {
     const { page, limit, category, difficulty, search, isFeatured } = query;
     const skip = (page - 1) * limit;
 
-    const where = {
+    let categoryCondition: any = undefined;
+    if (category) {
+      if (category === "TECH") {
+        categoryCondition = {
+          in: [
+            "TECH",
+            "FRONTEND",
+            "BACKEND",
+            "FULLSTACK",
+            "MOBILE",
+            "DEVOPS",
+            "DATA_SCIENCE",
+            "MACHINE_LEARNING",
+            "SYSTEM_DESIGN",
+            "PRODUCT_MANAGEMENT",
+          ],
+        };
+      } else {
+        categoryCondition = category;
+      }
+    }
+
+    const where: any = {
       isPublished: true,
-      ...(category !== undefined ? { category } : {}),
+      ...(categoryCondition !== undefined ? { category: categoryCondition } : {}),
       ...(difficulty !== undefined ? { difficulty } : {}),
       ...(isFeatured !== undefined ? { isFeatured } : {}),
       ...(search
@@ -110,7 +132,7 @@ export class PracticeService {
       data: {
         title: data.title,
         description: data.description,
-        category: data.category,
+        category: data.category as any,
         difficulty: data.difficulty,
         requiredSkills: data.requiredSkills,
         technologies: data.technologies ?? [],
@@ -133,7 +155,7 @@ export class PracticeService {
     const existing = await prisma.practiceJob.findUnique({ where: { id } });
     if (!existing) throw new ApiError(404, "Practice job not found");
 
-    const job = await prisma.practiceJob.update({ where: { id }, data });
+    const job = await prisma.practiceJob.update({ where: { id }, data: data as any });
     return job;
   }
 

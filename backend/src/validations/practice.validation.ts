@@ -5,6 +5,10 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------
 
 export const PracticeJobCategoryEnum = z.enum([
+  "TECH",
+  "SALES",
+  "HR",
+  "COMMUNICATION",
   "FRONTEND",
   "BACKEND",
   "FULLSTACK",
