@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useUser, UserButton } from '@clerk/nextjs';
 import { ArrowRight, Menu, X } from 'lucide-react';
@@ -12,6 +13,7 @@ const NAV_ITEMS = [
   { id: 'platform', label: 'Platform', href: '/#platform' },
   { id: 'testimonials', label: 'Testimonials', href: '/#testimonials' },
   { id: 'pricing', label: 'Pricing', href: '/#pricing' },
+  { id: 'footer', label: 'Footer', href: '/#footer' },
 ];
 
 export default function Navbar() {
@@ -42,9 +44,9 @@ export default function Navbar() {
       const windowHeight = window.innerHeight;
       const docHeight = document.documentElement.scrollHeight;
 
-      // Bottom of page -> Pricing is active
+      // Bottom of page -> Footer is active
       if (scrollY + windowHeight >= docHeight - 80) {
-        setActiveSection('pricing');
+        setActiveSection('footer');
         return;
       }
 
@@ -57,6 +59,7 @@ export default function Navbar() {
       // Check sections from bottom to top using absolute scroll position (35% down viewport)
       const targetScroll = scrollY + windowHeight * 0.35;
       const sections = [
+        { id: 'footer', el: document.getElementById('footer') },
         { id: 'pricing', el: document.getElementById('pricing') },
         { id: 'testimonials', el: document.getElementById('testimonials') || document.getElementById('stories') },
         { id: 'platform', el: document.getElementById('platform') },
@@ -90,6 +93,8 @@ export default function Navbar() {
         setActiveSection('testimonials');
       } else if (hash === 'pricing') {
         setActiveSection('pricing');
+      } else if (hash === 'footer') {
+        setActiveSection('footer');
       }
     }
 
@@ -136,23 +141,26 @@ export default function Navbar() {
       <div className="max-w-5xl mx-auto pointer-events-auto">
         {/* Floating Capsule Island Navbar */}
         <nav
-          className={`rounded-full py-2 px-5 sm:px-6 flex items-center justify-between border transition-all duration-300 ${
-            isScrolled
+          className={`rounded-full py-2 px-5 sm:px-6 flex items-center justify-between border transition-all duration-300 ${isScrolled
               ? 'bg-white/95 backdrop-blur-2xl border-slate-200/90 shadow-2xl shadow-slate-900/10'
               : 'bg-white/85 backdrop-blur-xl border-slate-200/80 shadow-xl shadow-slate-900/5'
-          }`}
+            }`}
         >
           {/* Logo */}
           <div className="flex items-center">
             <Link
               href="/#home"
               onClick={(e) => handleNavClick(e, '/#home', 'home')}
-              className="flex items-center gap-1.5 group"
+              className="flex items-center group py-0.5"
             >
-              <span className="font-serif text-2xl sm:text-3xl font-bold text-slate-950 tracking-tight group-hover:text-orange-500 transition-colors">
-                Sensei
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 animate-pulse" />
+              <Image
+                src="/Logo.png"
+                alt="Sensei"
+                width={125}
+                height={36}
+                priority
+                className="h-7 sm:h-8 w-auto object-contain transition-transform group-hover:scale-105"
+              />
             </Link>
           </div>
 
@@ -165,11 +173,10 @@ export default function Navbar() {
                   key={item.id}
                   href={item.href}
                   onClick={(e) => handleNavClick(e, item.href, item.id)}
-                  className={`relative z-10 font-sans text-sm px-4 py-1.5 rounded-full transition-colors duration-200 select-none ${
-                    isActive
+                  className={`relative z-10 font-sans text-sm px-4 py-1.5 rounded-full transition-colors duration-200 select-none ${isActive
                       ? 'text-white font-semibold'
                       : 'text-slate-600 hover:text-slate-950 font-medium hover:bg-slate-100/60'
-                  }`}
+                    }`}
                 >
                   {isActive && (
                     <motion.span
@@ -210,7 +217,7 @@ export default function Navbar() {
                 </Link>
                 <Link
                   href="/sign-up"
-                  className="px-4 py-2 bg-slate-950 text-white rounded-full font-sans text-xs sm:text-sm font-semibold hover:bg-slate-800 transition-all shadow-md inline-flex items-center gap-1.5 hover:scale-105"
+                  className="px-4 py-2 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-full font-sans text-xs sm:text-sm font-semibold hover:opacity-95 transition-all shadow-md shadow-orange-500/25 inline-flex items-center gap-1.5 hover:scale-105"
                 >
                   <span>Get Started</span>
                   <ArrowRight className="h-3.5 w-3.5 text-white" />
@@ -247,11 +254,10 @@ export default function Navbar() {
                       setIsMobileMenuOpen(false);
                       handleNavClick(e, item.href, item.id);
                     }}
-                    className={`font-sans text-sm px-4 py-2.5 rounded-xl transition-all ${
-                      isActive
+                    className={`font-sans text-sm px-4 py-2.5 rounded-xl transition-all ${isActive
                         ? 'font-semibold text-white bg-gradient-to-r from-orange-500 to-pink-500 shadow-sm'
                         : 'font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100/70'
-                    }`}
+                      }`}
                   >
                     {item.label}
                   </Link>
@@ -291,7 +297,7 @@ export default function Navbar() {
                   <Link
                     href="/sign-up"
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="py-2.5 bg-slate-950 text-white rounded-full font-sans text-sm font-semibold text-center hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5"
+                    className="py-2.5 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-full font-sans text-sm font-semibold text-center hover:opacity-95 transition-all shadow-md shadow-orange-500/25 flex items-center justify-center gap-1.5"
                   >
                     <span>Get Started</span>
                     <ArrowRight className="h-3.5 w-3.5 text-white" />

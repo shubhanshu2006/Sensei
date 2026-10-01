@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -90,14 +91,16 @@ export function Sidebar({ role, isOpen = true, onClose }: SidebarProps) {
           <div className="flex h-20 items-center justify-between border-b border-slate-100 px-6">
             <Link
               href="/"
-              className="flex items-center gap-2 group transition-opacity"
+              className="flex items-center group transition-opacity py-1"
             >
-              <div className="flex items-center gap-1.5">
-                <span className="font-sans text-2xl font-bold text-slate-900 tracking-tight group-hover:text-orange-600 transition-colors">
-                  Sensei
-                </span>
-                <span className="w-2 h-2 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 animate-pulse" />
-              </div>
+              <Image
+                src="/Logo.png"
+                alt="Sensei"
+                width={115}
+                height={34}
+                priority
+                className="h-7 w-auto object-contain transition-transform group-hover:scale-105"
+              />
             </Link>
 
             <span className="text-[10px] font-mono uppercase font-semibold px-2.5 py-0.5 rounded-full bg-orange-50 border border-orange-200/80 text-orange-600">

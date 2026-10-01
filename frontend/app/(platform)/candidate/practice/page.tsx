@@ -83,6 +83,9 @@ export default function PracticePage() {
 
   const jobs = practiceData?.jobs || [];
   const activeResumeUrl = resumeUrl || profile?.resumeUrl || "";
+  const isNonTechnical = selectedJob
+    ? ["SALES", "HR", "COMMUNICATION"].includes(selectedJob.category?.toUpperCase())
+    : false;
   const availableCredits = creditsData
     ? creditsData.practiceCredits - creditsData.practiceCreditsUsed
     : 0;
@@ -90,8 +93,8 @@ export default function PracticePage() {
   const handleStartPractice = async () => {
     if (!selectedJob) return;
 
-    if (!activeResumeUrl) {
-      toast.error("A resume is required for AI interview personalization. Please upload one below.");
+    if (!isNonTechnical && !activeResumeUrl) {
+      toast.error("A resume is required for technical interview personalization. Please upload your resume below.");
       return;
     }
 
@@ -104,7 +107,7 @@ export default function PracticePage() {
     try {
       const response: any = await startPracticeMutation.mutateAsync({
         practiceJobId: selectedJob.id,
-        resumeUrl: activeResumeUrl,
+        resumeUrl: activeResumeUrl || undefined,
       });
 
       const token =
@@ -480,11 +483,27 @@ export default function PracticePage() {
             </div>
 
             {/* Resume Upload Context */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-900 font-mono flex items-center gap-1.5">
-                <Briefcase className="h-4 w-4 text-orange-500" />
-                <span>Candidate Resume Context (Required for Personalization)</span>
-              </label>
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-900 font-mono flex items-center gap-1.5">
+                  <Briefcase className="h-4 w-4 text-orange-500" />
+                  <span>Candidate Resume Context</span>
+                </label>
+                {isNonTechnical ? (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                    Optional (Non-Tech Track)
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                    Required for Personalization
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                {isNonTechnical
+                  ? "Resume upload is optional for non-technical rounds. Questions focus directly on behavioral communication, sales discovery, and objection scenarios."
+                  : "Upload your resume so the AI can calibrate technical architecture and coding questions to your claimed experience."}
+              </p>
               <ResumeUpload
                 currentResumeUrl={activeResumeUrl}
                 currentFileName={profile?.resumeFileName || undefined}

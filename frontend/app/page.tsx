@@ -45,7 +45,9 @@ export default async function Home() {
         </div>
         <CTA />
       </main>
-      <Footer />
+      <div id="footer" className="scroll-mt-24">
+        <Footer />
+      </div>
     </>
   );
 }

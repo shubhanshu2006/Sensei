@@ -231,9 +231,9 @@
 .sh-cta {
   display: flex;
 
-  gap: 14px;
+  gap: 18px;
 
-  margin-top: 26px;
+  margin-top: 30px;
 
   flex-wrap: wrap;
 
@@ -247,16 +247,16 @@
 
   justify-content: center;
 
-  gap: 9px;
+  gap: 10px;
 
-  height: 56px;
+  height: 58px;
 
-  padding: 0 29px;
+  padding: 0 36px;
 
   border-radius: 999px;
 
   font:
-    600 15px 'Inter',
+    600 15.5px 'Inter',
     sans-serif;
 
   text-decoration: none;
@@ -282,6 +282,8 @@
 .sh-btn.primary {
   color: #ffffff;
 
+  min-width: 240px;
+
   background:
     linear-gradient(90deg,
       #ff6a00,
@@ -304,11 +306,13 @@
 .sh-btn.ghost {
   color: #0b0b14;
 
+  min-width: 200px;
+
   background:
     rgba(255, 255, 255, 0.85);
 
   padding:
-    0 27px 0 23px;
+    0 32px 0 26px;
 
   border:
     1px solid rgba(220, 210, 210, 0.75);
@@ -329,8 +333,8 @@
 /* PLAY BUTTON */
 
 .sh-play {
-  width: 25px;
-  height: 25px;
+  width: 26px;
+  height: 26px;
 
   border-radius: 50%;
 
@@ -348,11 +352,17 @@
 .sh-stats {
   display: flex;
 
-  margin-top: 36px;
+  margin-top: 42px;
+
+  width: 100%;
+
+  max-width: 880px;
+
+  justify-content: center;
 }
 
 .sh-stat {
-  padding: 0 30px;
+  padding: 0 42px;
 
   display: flex;
 
@@ -360,7 +370,9 @@
 
   align-items: center;
 
-  min-width: 190px;
+  min-width: 230px;
+
+  flex: 1;
 }
 
 .sh-stat+.sh-stat {
@@ -371,8 +383,8 @@
 /* STAT ICON */
 
 .sh-ico {
-  width: 48px;
-  height: 48px;
+  width: 50px;
+  height: 50px;
 
   border-radius: 50%;
 
@@ -380,12 +392,12 @@
 
   place-items: center;
 
-  margin-bottom: 9px;
+  margin-bottom: 10px;
 }
 
 .sh-ico svg {
-  width: 25px;
-  height: 25px;
+  width: 26px;
+  height: 26px;
 }
 
 /* STAT NUMBER */
@@ -396,7 +408,7 @@
     Georgia,
     serif;
 
-  font-size: 32px;
+  font-size: 38px;
 
   letter-spacing: -0.02em;
 
@@ -408,17 +420,19 @@
 /* STAT LABEL */
 
 .sh-lbl {
-  margin-top: 5px;
+  margin-top: 6px;
 
-  font-size: 10px;
+  font-size: 11px;
 
   font-weight: 600;
 
-  letter-spacing: 0.09em;
+  letter-spacing: 0.11em;
 
   text-transform: uppercase;
 
   color: #4a4a55;
+
+  white-space: nowrap;
 }
 
 /* ============================================================

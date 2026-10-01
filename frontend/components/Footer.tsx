@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Heart, Sparkles, Shield, Mail, ArrowUpRight } from "lucide-react";
 
 export default function Footer() {
@@ -17,10 +18,14 @@ export default function Footer() {
           
           {/* Brand & Mission (Spans 4 columns) */}
           <div className="md:col-span-4 space-y-5">
-            <Link href="/" className="inline-block group">
-              <span className="font-serif text-4xl font-bold tracking-tight text-slate-950 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-orange-500 group-hover:to-pink-500 group-hover:bg-clip-text transition-all">
-                Sensei
-              </span>
+            <Link href="/" className="inline-block group py-1">
+              <Image
+                src="/Logo.png"
+                alt="Sensei"
+                width={140}
+                height={42}
+                className="h-9 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105"
+              />
             </Link>
 
             <p className="font-sans text-sm text-slate-600 leading-relaxed max-w-sm">

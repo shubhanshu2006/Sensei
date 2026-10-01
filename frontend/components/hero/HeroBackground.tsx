@@ -4,7 +4,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   blobs,
   waves,
-  lines,
   dots,
   orbs,
   loop,
@@ -61,29 +60,6 @@ export default function HeroBackground() {
           />
         ))}
 
-        {/* MOVING WHITE LINES */}
-        {lines.map((l, i) => (
-          <motion.path
-            key={i}
-            d={l.d}
-            fill="none"
-            stroke="rgba(255,255,255,.85)"
-            strokeWidth="1.4"
-            strokeDasharray="6 14"
-            animate={
-              still
-                ? {}
-                : {
-                  strokeDashoffset: [0, l.dir * 400],
-                }
-            }
-            transition={{
-              duration: l.t,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
-        ))}
       </svg>
 
       {/* MOVING DOT PATTERNS */}
