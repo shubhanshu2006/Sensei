@@ -16,6 +16,7 @@ import {
   BarChart3,
   ArrowUpRight,
   Award,
+  Play,
 } from "lucide-react";
 
 interface NavItem {
@@ -48,10 +49,11 @@ const candidateNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+  { label: "Give Interview", href: "/candidate/practice", icon: Play },
+  { label: "Practice Tracks", href: "/admin/practice", icon: GraduationCap },
   { label: "Users", href: "/admin/users", icon: Users },
   { label: "Credit Approvals", href: "/admin/credits", icon: CreditCard },
   { label: "Jobs", href: "/admin/jobs", icon: Briefcase },
-  { label: "Practice", href: "/admin/practice", icon: GraduationCap },
   { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];

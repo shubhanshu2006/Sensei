@@ -12,6 +12,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { data: creditsData } = useCandidatePracticeCredits();
+  const isUnlimited = (creditsData as any)?.isUnlimited || (creditsData?.practiceCredits ?? 0) >= 99999;
   const total = creditsData?.practiceCredits ?? 2;
   const used = creditsData?.practiceCreditsUsed ?? 0;
   const available = Math.max(0, total - used);
@@ -43,11 +44,13 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Zap className="h-2.5 w-2.5 fill-current" />
             </div>
             <span className="text-xs font-mono font-bold bg-gradient-to-r from-orange-600 to-pink-600 bg-clip-text text-transparent">
-              {available} {available === 1 ? "Credit" : "Credits"}
+              {isUnlimited ? "∞ Unlimited" : `${available} ${available === 1 ? "Credit" : "Credits"}`}
             </span>
-            <span className="hidden sm:inline text-[10px] font-sans text-slate-500 group-hover:text-slate-700">
-              • Top Up
-            </span>
+            {!isUnlimited && (
+              <span className="hidden sm:inline text-[10px] font-sans text-slate-500 group-hover:text-slate-700">
+                • Top Up
+              </span>
+            )}
           </Link>
 
           {/* User menu */}
