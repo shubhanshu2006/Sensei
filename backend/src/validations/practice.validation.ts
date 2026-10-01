@@ -32,27 +32,42 @@ export const PracticeJobDifficultyEnum = z.enum([
 // createPracticeJobSchema
 // ---------------------------------------------------------------------------
 
-export const createPracticeJobSchema = z.object({
-  title: z
-    .string()
-    .min(3, "Title must be at least 3 characters")
-    .max(200, "Title must be at most 200 characters"),
-  description: z.string().min(50, "Description must be at least 50 characters"),
-  category: PracticeJobCategoryEnum,
-  difficulty: PracticeJobDifficultyEnum,
-  requiredSkills: z
-    .array(z.string().min(1))
-    .min(1, "At least one required skill must be specified")
-    .max(15, "At most 15 required skills are allowed"),
-  technologies: z.array(z.string().min(1)).optional(),
-  estimatedDuration: z
-    .number()
-    .int("Duration must be a whole number")
-    .min(5, "Duration must be at least 5 minutes")
-    .max(120, "Duration must be at most 120 minutes")
-    .optional(),
-  isFeatured: z.boolean().default(false),
-});
+export const createPracticeJobSchema = z
+  .object({
+    title: z
+      .string()
+      .min(3, "Title must be at least 3 characters")
+      .max(200, "Title must be at most 200 characters"),
+    description: z
+      .string()
+      .min(50, "Description must be at least 50 characters")
+      .max(2000, "Description cannot exceed 2000 characters"),
+    category: PracticeJobCategoryEnum,
+    difficulty: PracticeJobDifficultyEnum,
+    requiredSkills: z
+      .array(z.string().min(1))
+      .max(50, "At most 50 required skills are allowed")
+      .optional()
+      .default([]),
+    technologies: z.array(z.string().min(1)).optional(),
+    estimatedDuration: z
+      .number()
+      .int("Duration must be a whole number")
+      .min(5, "Duration must be at least 5 minutes")
+      .max(120, "Duration must be at most 120 minutes")
+      .optional(),
+    isFeatured: z.boolean().default(false),
+  })
+  .superRefine((data, ctx) => {
+    const isNonTechnical = ["SALES", "HR", "COMMUNICATION"].includes(data.category);
+    if (!isNonTechnical && (!data.requiredSkills || data.requiredSkills.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one required skill must be specified for technical roles",
+        path: ["requiredSkills"],
+      });
+    }
+  });
 
 export type CreatePracticeJobDTO = z.infer<typeof createPracticeJobSchema>;
 
@@ -63,10 +78,10 @@ export type CreatePracticeJobDTO = z.infer<typeof createPracticeJobSchema>;
 export const updatePracticeJobSchema = z
   .object({
     title: z.string().min(3).max(200).optional(),
-    description: z.string().min(50).optional(),
+    description: z.string().min(50).max(2000).optional(),
     category: PracticeJobCategoryEnum.optional(),
     difficulty: PracticeJobDifficultyEnum.optional(),
-    requiredSkills: z.array(z.string().min(1)).min(1).max(15).optional(),
+    requiredSkills: z.array(z.string().min(1)).min(1).max(50).optional(),
     technologies: z.array(z.string().min(1)).optional(),
     estimatedDuration: z.number().int().min(5).max(120).optional(),
     isFeatured: z.boolean().optional(),
@@ -84,7 +99,7 @@ export type UpdatePracticeJobDTO = z.infer<typeof updatePracticeJobSchema>;
 
 export const practiceQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(50).default(10),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
   category: PracticeJobCategoryEnum.optional(),
   difficulty: PracticeJobDifficultyEnum.optional(),
   search: z.string().optional(),

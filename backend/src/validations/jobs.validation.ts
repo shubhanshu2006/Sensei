@@ -62,7 +62,7 @@ const jobBaseObject = z.object({
   requiredSkills: z
     .array(z.string().min(1))
     .min(1, "At least one required skill must be specified")
-    .max(20, "Cannot specify more than 20 required skills"),
+    .max(50, "Cannot specify more than 50 required skills"),
   preferredSkills: z.array(z.string().min(1)).optional(),
   experienceLevel: experienceLevelEnum,
   minExperience: z.number().int().min(0).max(30).optional(),

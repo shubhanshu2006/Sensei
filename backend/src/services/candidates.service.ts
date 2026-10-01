@@ -147,6 +147,9 @@ export class CandidateService {
       select: {
         practiceCredits: true,
         practiceCreditsUsed: true,
+        user: {
+          select: { role: true },
+        },
       },
     });
 
@@ -154,10 +157,13 @@ export class CandidateService {
       throw new ApiError(404, "Candidate profile not found");
     }
 
+    const isAdmin = profile.user?.role === "PLATFORM_ADMIN" || profile.practiceCredits >= 99999;
+
     return {
-      practiceCredits: profile.practiceCredits,
-      practiceCreditsUsed: profile.practiceCreditsUsed,
-      creditsRemaining: profile.practiceCredits - profile.practiceCreditsUsed,
+      practiceCredits: isAdmin ? 99999 : profile.practiceCredits,
+      practiceCreditsUsed: isAdmin ? 0 : profile.practiceCreditsUsed,
+      creditsRemaining: isAdmin ? 99999 : Math.max(0, profile.practiceCredits - profile.practiceCreditsUsed),
+      isUnlimited: isAdmin,
     };
   }
 
@@ -192,6 +198,7 @@ export class CandidateService {
             select: {
               id: true,
               title: true,
+              description: true,
               category: true,
               difficulty: true,
               estimatedDuration: true,

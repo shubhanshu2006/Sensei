@@ -161,13 +161,29 @@ export class PracticeService {
 
   /**
    * Permanently deletes a practice job.
+   * Only allowed if the job description has 0 practices.
    */
   async deletePracticeJob(id: string): Promise<void> {
     const existing = await prisma.practiceJob.findUnique({
       where: { id },
-      select: { id: true },
+      select: {
+        id: true,
+        title: true,
+        practiceCount: true,
+        _count: {
+          select: { interviewSessions: true },
+        },
+      },
     });
     if (!existing) throw new ApiError(404, "Practice job not found");
+
+    const sessionCount = existing._count?.interviewSessions ?? 0;
+    if (existing.practiceCount > 0 || sessionCount > 0) {
+      throw new ApiError(
+        400,
+        `Cannot delete "${existing.title}" because it has already been practiced (${Math.max(existing.practiceCount, sessionCount)} session(s)). Deletion is only allowed for job descriptions with 0 practices.`
+      );
+    }
 
     await prisma.practiceJob.delete({ where: { id } });
     logger.info(`[PracticeService] Practice job deleted: ${id}`);
@@ -188,6 +204,26 @@ export class PracticeService {
       data: { isFeatured: !existing.isFeatured },
     });
 
+    return job;
+  }
+
+  /**
+   * Toggles the isPublished flag on a practice job (Hide / Unhide).
+   * Hides the track from the candidate dashboard while preserving it for scorecards.
+   */
+  async togglePublished(id: string) {
+    const existing = await prisma.practiceJob.findUnique({
+      where: { id },
+      select: { isPublished: true },
+    });
+    if (!existing) throw new ApiError(404, "Practice job not found");
+
+    const job = await prisma.practiceJob.update({
+      where: { id },
+      data: { isPublished: !existing.isPublished },
+    });
+
+    logger.info(`[PracticeService] Practice job ${id} isPublished set to ${job.isPublished}`);
     return job;
   }
 
@@ -224,7 +260,8 @@ export class PracticeService {
         id: true, 
         practiceCredits: true, 
         practiceCreditsUsed: true,
-        resumeUrl: true 
+        resumeUrl: true,
+        user: { select: { role: true } },
       },
     });
 
@@ -232,17 +269,19 @@ export class PracticeService {
       throw new ApiError(404, "Candidate profile not found");
     }
 
-    // Check if candidate has available credits (total - used)
+    const isAdmin = candidate.user?.role === "PLATFORM_ADMIN" || candidate.practiceCredits >= 99999;
+
+    // Check if candidate has available credits (total - used). PLATFORM_ADMIN has unlimited interviews.
     const availableCredits = candidate.practiceCredits - candidate.practiceCreditsUsed;
-    if (availableCredits <= 0) {
+    if (!isAdmin && availableCredits <= 0) {
       throw new ApiError(
         402, 
         "Insufficient practice credits. Please purchase more credits to start a practice session."
       );
     }
 
-    // Resolve resume URL
-    const sessionResumeUrl = resumeUrlOverride ?? candidate.resumeUrl;
+    // Resolve resume URL (with admin fallback for immediate testing)
+    const sessionResumeUrl = resumeUrlOverride ?? candidate.resumeUrl ?? (isAdmin ? "https://sensei.ai/sample-resume.pdf" : undefined);
     if (!sessionResumeUrl) {
       throw new ApiError(
         400,
@@ -250,26 +289,27 @@ export class PracticeService {
       );
     }
 
-    // 3. Atomically deduct credit and create session in a transaction
+    // 3. Atomically deduct credit (candidates only) and create session in a transaction
     try {
       const session = await prisma.$transaction(async (tx) => {
-        // Deduct practice credit using creditsService pattern
-        // This ensures atomic credit deduction with race condition protection
-        const updated = await tx.candidateProfile.updateMany({
-          where: { 
-            id: candidateProfileId,
-            practiceCreditsUsed: { lt: candidate.practiceCredits }, // Atomic constraint
-          },
-          data: {
-            practiceCreditsUsed: { increment: 1 },
-          },
-        });
+        // Only deduct practice credit for regular candidates; PLATFORM_ADMIN is unlimited
+        if (!isAdmin) {
+          const updated = await tx.candidateProfile.updateMany({
+            where: { 
+              id: candidateProfileId,
+              practiceCreditsUsed: { lt: candidate.practiceCredits }, // Atomic constraint
+            },
+            data: {
+              practiceCreditsUsed: { increment: 1 },
+            },
+          });
 
-        if (updated.count === 0) {
-          throw new ApiError(
-            409, 
-            'Credit deduction failed due to concurrent modification. Please try again.'
-          );
+          if (updated.count === 0) {
+            throw new ApiError(
+              409, 
+              'Credit deduction failed due to concurrent modification. Please try again.'
+            );
+          }
         }
 
         // Create the InterviewSession
