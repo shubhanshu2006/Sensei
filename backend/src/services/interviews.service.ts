@@ -1,5 +1,6 @@
 import { prisma } from "../database/client.js";
 import { ApiError } from "../utils/ApiError.js";
+import { logger } from "../utils/logger.js";
 
 // Service
 
@@ -16,8 +17,13 @@ class InterviewService {
    * @throws 403 if the requesting user has no relationship to the session.
    */
   async getSessionById(sessionId: string, userId: string) {
-    const session = await prisma.interviewSession.findUnique({
-      where: { id: sessionId },
+    const session = await prisma.interviewSession.findFirst({
+      where: {
+        OR: [
+          { id: sessionId },
+          { sessionToken: sessionId },
+        ],
+      },
       include: {
         application: {
           include: {
@@ -105,30 +111,25 @@ class InterviewService {
   }
 
   async getInterviewResults(sessionId: string, userId: string) {
-    const session = await prisma.interviewSession.findUnique({
-      where: { id: sessionId },
+    const session = await prisma.interviewSession.findFirst({
+      where: {
+        OR: [
+          { id: sessionId },
+          { sessionToken: sessionId },
+        ],
+      },
       include: {
         scorecard: true,
         resumeFeedback: true,
-        transcript: {
-          select: {
-            id: true,
-            totalWords: true,
-            fillerWordCount: true,
-            averagePaceWPM: true,
-            createdAt: true,
-          },
-        },
+        transcript: true,
         application: {
           include: {
-            job: { select: { id: true, title: true } },
+            job: true,
             candidate: { select: { id: true, userId: true } },
           },
         },
         candidate: { select: { id: true, userId: true } },
-        practiceJob: {
-          select: { id: true, title: true, category: true, difficulty: true },
-        },
+        practiceJob: true,
       },
     });
 
@@ -137,40 +138,61 @@ class InterviewService {
     }
 
     if (session.status !== "COMPLETED") {
-      throw new ApiError(
-        400,
-        "Interview results are only available once the session is completed",
-      );
+      await prisma.interviewSession.update({
+        where: { id: session.id },
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date(),
+        },
+      });
+      session.status = "COMPLETED";
     }
 
     const candidateUserId =
       session.application?.candidate?.userId ?? session.candidate?.userId;
 
-    if (candidateUserId !== userId) {
+    if (candidateUserId && candidateUserId !== userId) {
       throw new ApiError(
         403,
         "You do not have access to these interview results",
       );
     }
 
-    return session;
+    // If scorecard is not yet generated, trigger background evaluation immediately
+    if (!session.scorecard) {
+      try {
+        const { executeInterviewEvaluation } = await import("./queue/InterviewEvaluationJob.js");
+        executeInterviewEvaluation(session.id).catch((err) => {
+          logger.error("[InterviewService] On-demand evaluation error:", err);
+        });
+      } catch (err) {
+        logger.error("[InterviewService] Failed to launch evaluation:", err);
+      }
+
+      return {
+        ...session,
+        isEvaluating: true,
+      };
+    }
+
+    return {
+      ...session,
+      isEvaluating: false,
+    };
   }
 
   async getRecruiterInterviewResults(sessionId: string, recruiterId: string) {
-    const session = await prisma.interviewSession.findUnique({
-      where: { id: sessionId },
+    const session = await prisma.interviewSession.findFirst({
+      where: {
+        OR: [
+          { id: sessionId },
+          { sessionToken: sessionId },
+        ],
+      },
       include: {
         scorecard: true,
         // ResumeFeedback deliberately omitted.
-        transcript: {
-          select: {
-            id: true,
-            totalWords: true,
-            fillerWordCount: true,
-            averagePaceWPM: true,
-            createdAt: true,
-          },
-        },
+        transcript: true,
         application: {
           include: {
             job: {
