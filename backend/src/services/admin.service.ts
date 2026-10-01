@@ -162,6 +162,61 @@ class AdminService {
   }
 
   /**
+   * Manually sets or adds credits to any user account (candidate or recruiter).
+   */
+  async updateUserCredits(userId: string, credits: number, operation: "SET" | "ADD" = "SET") {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        candidateProfile: true,
+        recruiterProfile: true,
+      },
+    });
+
+    if (!user) {
+      throw new ApiError(404, `User with ID '${userId}' not found`);
+    }
+
+    if (user.candidateProfile) {
+      const newCredits = operation === "ADD"
+        ? user.candidateProfile.practiceCredits + credits
+        : credits;
+
+      const updated = await prisma.candidateProfile.update({
+        where: { id: user.candidateProfile.id },
+        data: { practiceCredits: Math.max(0, newCredits) },
+      });
+
+      return {
+        userId,
+        role: "CANDIDATE",
+        practiceCredits: updated.practiceCredits,
+        practiceCreditsUsed: updated.practiceCreditsUsed,
+        creditsRemaining: updated.practiceCredits - updated.practiceCreditsUsed,
+      };
+    }
+
+    if (user.recruiterProfile) {
+      const newCredits = operation === "ADD"
+        ? user.recruiterProfile.interviewCredits + credits
+        : credits;
+
+      const updated = await prisma.recruiterProfile.update({
+        where: { id: user.recruiterProfile.id },
+        data: { interviewCredits: Math.max(0, newCredits) },
+      });
+
+      return {
+        userId,
+        role: "RECRUITER",
+        interviewCredits: updated.interviewCredits,
+      };
+    }
+
+    throw new ApiError(400, "User does not have an active candidate or recruiter profile");
+  }
+
+  /**
    * Returns ALL practice jobs for admin management (published or unpublished).
    * The candidate-facing endpoint filters by `isPublished = true`; this one
    * does not, giving admins full visibility.

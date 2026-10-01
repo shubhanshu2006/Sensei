@@ -55,6 +55,17 @@ router.patch(
 );
 
 /**
+ * PATCH /admin/users/:userId/credits
+ * Manually sets or adds practice/interview credits for any user.
+ * Body: { credits: number, operation?: 'SET' | 'ADD' }
+ */
+router.patch(
+  "/users/:userId/credits",
+  ...adminGuard,
+  adminController.updateUserCredits,
+);
+
+/**
  * GET /admin/practice-jobs
  * Returns ALL practice jobs (published and unpublished) for admin management.
  * Query: { page?, limit?, category?, difficulty?, featured?, search? }
@@ -64,6 +75,40 @@ router.get(
   ...adminGuard,
   validateQuery(practiceQuerySchema),
   adminController.getPracticeJobs,
+);
+
+import { creditRequestController } from "../controllers/creditRequest.controller.js";
+
+/**
+ * GET /admin/credits/requests
+ * Super Admin: Retrieves paginated list of all submitted credit purchase requests.
+ * Query: { status?, page?, limit?, search?, role? }
+ */
+router.get(
+  "/credits/requests",
+  ...adminGuard,
+  creditRequestController.getAdminRequests,
+);
+
+/**
+ * PATCH /admin/credits/requests/:id/approve
+ * Super Admin: Approves a pending credit request and allots credits to the user.
+ */
+router.patch(
+  "/credits/requests/:id/approve",
+  ...adminGuard,
+  creditRequestController.approveRequest,
+);
+
+/**
+ * PATCH /admin/credits/requests/:id/reject
+ * Super Admin: Rejects a credit request with an optional reason note.
+ * Body: { note?: string }
+ */
+router.patch(
+  "/credits/requests/:id/reject",
+  ...adminGuard,
+  creditRequestController.rejectRequest,
 );
 
 export default router;

@@ -76,6 +76,40 @@ class AdminController {
   });
 
   /**
+   * PATCH /admin/users/:userId/credits
+   * Manually sets or adds practice/interview credits for any user.
+   * Body: { credits: number, operation?: 'SET' | 'ADD' }
+   */
+  updateUserCredits = asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = req.params as Record<string, string>;
+    const { credits, operation = "SET" } = req.body;
+
+    if (!userId) {
+      throw new ApiError(400, "userId route parameter is required");
+    }
+
+    if (typeof credits !== "number" || isNaN(credits)) {
+      throw new ApiError(400, "credits must be a valid number");
+    }
+
+    const updated = await adminService.updateUserCredits(
+      userId,
+      credits,
+      operation as "SET" | "ADD",
+    );
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          updated,
+          `User credits updated successfully`,
+        ),
+      );
+  });
+
+  /**
    * GET /admin/practice-jobs
    * Returns ALL practice jobs (published and unpublished) for admin management.
    *
