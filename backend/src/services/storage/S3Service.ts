@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  PutBucketCorsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../../config/index.js";
@@ -13,6 +14,7 @@ import { ApiError } from "../../utils/ApiError.js";
 //
 // Handles:
 // - Pre-signed URLs for direct client uploads (avoids proxy through backend)
+// - Direct server uploads when browser CORS blocks direct S3 PUT
 // - Pre-signed URLs for secure downloads
 // - File deletion
 // - Organized folder structure by user type
@@ -30,6 +32,70 @@ export class S3Service {
       },
     });
     this.bucket = config.aws.s3Bucket;
+  }
+
+  /**
+   * Attempts to set CORS policy on the S3 bucket to allow browser uploads from any origin.
+   */
+  async configureBucketCors(): Promise<void> {
+    try {
+      const command = new PutBucketCorsCommand({
+        Bucket: this.bucket,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedHeaders: ["*"],
+              AllowedMethods: ["GET", "PUT", "POST", "HEAD"],
+              AllowedOrigins: ["*"],
+              ExposeHeaders: ["ETag"],
+              MaxAgeSeconds: 3600,
+            },
+          ],
+        },
+      });
+      await this.s3Client.send(command);
+      logger.info(`[S3Service] Successfully configured CORS on bucket ${this.bucket}`);
+    } catch (err: any) {
+      logger.warn(`[S3Service] S3 CORS auto-config note: ${err?.message || err}`);
+    }
+  }
+
+  /**
+   * Uploads a file buffer directly to S3 from the backend server.
+   * Eliminates browser CORS issues entirely by running server-to-server.
+   */
+  async uploadFile(
+    folder: "candidates" | "applications",
+    id: string,
+    fileName: string,
+    fileBuffer: Buffer,
+    contentType: string,
+  ): Promise<{ fileKey: string; fileUrl: string }> {
+    try {
+      const sanitizedName = fileName
+        .replace(/[^a-zA-Z0-9.-]/g, "-")
+        .replace(/--+/g, "-")
+        .toLowerCase();
+
+      const fileKey = `resumes/${folder}/${id}/${Date.now()}-${sanitizedName}`;
+
+      const command = new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: fileKey,
+        Body: fileBuffer,
+        ContentType: contentType,
+      });
+
+      await this.s3Client.send(command);
+
+      const fileUrl = `https://${this.bucket}.s3.${config.aws.region}.amazonaws.com/${fileKey}`;
+      logger.info(`[S3Service] Direct file uploaded: ${fileKey}`);
+
+      return { fileKey, fileUrl };
+    } catch (error) {
+      logger.error("[S3Service] Failed to upload file directly", error);
+      throw new ApiError(500, "Failed to upload file to storage");
+    }
   }
 
   // generateUploadUrl
@@ -166,6 +232,32 @@ export class S3Service {
     } catch (error) {
       logger.error("[S3Service] Failed to get file metadata", error);
       throw new ApiError(404, "File not found");
+    }
+  }
+
+  /**
+   * Retrieves raw file buffer directly from S3 using AWS SDK.
+   */
+  async getFileBuffer(fileKeyOrUrl: string): Promise<Buffer> {
+    try {
+      const fileKey = fileKeyOrUrl.startsWith("http")
+        ? this.extractKeyFromUrl(fileKeyOrUrl)
+        : fileKeyOrUrl;
+
+      const command = new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: fileKey,
+      });
+
+      const response = await this.s3Client.send(command);
+      const byteArray = await response.Body?.transformToByteArray();
+      if (!byteArray) {
+        throw new Error("Empty file received from S3");
+      }
+      return Buffer.from(byteArray);
+    } catch (error) {
+      logger.error("[S3Service] Failed to get file buffer from S3", error);
+      throw error;
     }
   }
 }
