@@ -13,8 +13,42 @@ dotenv.config();
 
 const app = express();
 
-// Raw body middleware for Razorpay webhook signature verification
-// MUST come before express.json() to capture raw body
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+  : ["http://localhost:3000"];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header
+      // e.g. Postman, server-to-server requests, health checks
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Allow configured origins
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow all origins in development
+      if (process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
+
+    credentials: true,
+
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+
+    allowedHeaders: ["Content-Type", "Authorization", "X-Device-Fingerprint"],
+  }),
+);
+
 app.use(
   "/api/v1/payments/webhook",
   express.raw({ type: "application/json" }),
@@ -22,87 +56,86 @@ app.use(
     if (req.body) {
       (req as any).rawBody = req.body.toString("utf8");
     }
+
     next();
   },
 );
 
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public"));
-app.use(cookieParser());
-app.use(helmet());
-
-// Rate limiting - Applied globally to all API routes
-app.use("/api/v1", apiLimiter);
-
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : ["http://localhost:3000"];
 
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (
-        allowedOrigins.includes(origin) ||
-        process.env.NODE_ENV !== "production"
-      ) {
-        return callback(null, true);
-      }
-      return callback(new Error(`CORS: origin ${origin} not allowed`));
-    },
-    credentials: true, // allow cookies / Authorization headers
+  express.urlencoded({
+    extended: true,
   }),
 );
 
-// API routes
+app.use(express.static("public"));
+
+app.use(cookieParser());
+
+app.use(helmet());
+
+app.use("/api/v1", apiLimiter);
 
 app.use("/api/v1", apiRouter);
-
-// Health check (comprehensive dependency monitoring)
 
 app.get("/health", async (req, res) => {
   const startTime = Date.now();
 
   const health = {
-    status: "healthy",
+    status: "healthy" as "healthy" | "degraded",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+
     environment: process.env.NODE_ENV || "development",
+
     version: process.env.npm_package_version || "1.0.0",
+
     services: {
-      database: { status: "unknown", responseTime: 0 },
-      redis: { status: "unknown", responseTime: 0 },
+      database: {
+        status: "unknown" as "unknown" | "connected" | "disconnected",
+        responseTime: 0,
+      },
+
+      redis: {
+        status: "unknown" as "unknown" | "connected" | "disconnected",
+        responseTime: 0,
+      },
     },
   };
 
-  // Check database connection
   try {
     const dbStart = Date.now();
+
     await prisma.$queryRaw`SELECT 1`;
+
     health.services.database = {
       status: "connected",
       responseTime: Date.now() - dbStart,
     };
   } catch (error) {
     health.status = "degraded";
+
     health.services.database = {
       status: "disconnected",
       responseTime: 0,
     };
   }
 
-  // Check Redis connection
   try {
     const redisStart = Date.now();
+
     const { connection } = await import("./services/queue/index.js");
+
     await connection.ping();
+
     health.services.redis = {
       status: "connected",
       responseTime: Date.now() - redisStart,
     };
   } catch (error) {
     health.status = "degraded";
+
     health.services.redis = {
       status: "disconnected",
       responseTime: 0,
@@ -110,18 +143,20 @@ app.get("/health", async (req, res) => {
   }
 
   const statusCode = health.status === "healthy" ? 200 : 503;
+
   const totalResponseTime = Date.now() - startTime;
 
   const response = new ApiResponse(
     statusCode,
-    { ...health, responseTime: totalResponseTime },
+    {
+      ...health,
+      responseTime: totalResponseTime,
+    },
     `Health check ${health.status}`,
   );
 
   res.status(statusCode).json(response);
 });
-
-// Global error handler — must be last middleware registered
 
 app.use(errorHandler);
 

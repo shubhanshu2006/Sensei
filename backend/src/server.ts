@@ -71,7 +71,11 @@ connectDB()
       console.log(
         `[Server] Environment: ${process.env.NODE_ENV ?? "development"}`,
       );
-      console.log(`[Server] WebSocket available at ws://localhost:${PORT}`);
+      if (process.env.NODE_ENV === "production") {
+        console.log(`[Server] WebSocket server ready on port ${PORT}`);
+      } else {
+        console.log(`[Server] WebSocket available at ws://localhost:${PORT}`);
+      }
     });
   })
   .catch((err) => {
