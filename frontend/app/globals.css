@@ -102,6 +102,57 @@ body > * {
   animation: shimmer 2s infinite;
 }
 
+@keyframes scrollUpContinuous {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+.animate-scroll-up {
+  animation: scrollUpContinuous 24s linear infinite;
+}
+
+.animate-scroll-up:hover {
+  animation-play-state: paused;
+}
+
+@keyframes marqueeHorizontal {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee-smooth {
+  display: flex;
+  width: max-content;
+  animation: marqueeHorizontal 42s linear infinite;
+}
+
+.animate-marquee-smooth:hover {
+  animation-play-state: paused;
+}
+
+@keyframes barWaveContinuous {
+  0% {
+    transform: scaleY(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scaleY(0.72);
+    filter: brightness(1.18);
+  }
+  100% {
+    transform: scaleY(1.08);
+    filter: brightness(1.05);
+  }
+}
+
 /* Gradient text */
 .gradient-text {
   background: linear-gradient(135deg, #000000 0%, #434343 100%);

@@ -64,6 +64,8 @@ export interface OnboardingData {
   designation?: string;
   phoneNumber?: string;
   // Candidate fields
+  resumeUrl?: string;
+  resumeFileName?: string;
   location?: string;
   experience?: number;
   currentCompany?: string;

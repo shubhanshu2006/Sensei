@@ -1,13 +1,45 @@
 export enum ApplicationStatus {
   SUBMITTED = "SUBMITTED",
-  SCREENING = "SCREENING",
-  SCREENED = "SCREENED",
+  SCREENING_IN_PROGRESS = "SCREENING_IN_PROGRESS",
+  SCREENING_COMPLETED = "SCREENING_COMPLETED",
   SHORTLISTED = "SHORTLISTED",
-  INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED",
-  INTERVIEWED = "INTERVIEWED",
-  ACCEPTED = "ACCEPTED",
   REJECTED = "REJECTED",
+  INTERVIEW_INVITED = "INTERVIEW_INVITED",
+  INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED",
+  INTERVIEW_COMPLETED = "INTERVIEW_COMPLETED",
   WITHDRAWN = "WITHDRAWN",
+}
+
+export type ScreeningDecision =
+  | "STRONG_MATCH"
+  | "MODERATE_MATCH"
+  | "WEAK_MATCH"
+  | "NOT_SUITABLE";
+
+export interface ScreeningReport {
+  id: string;
+  applicationId: string;
+  overallMatchScore: number;
+  skillsScore?: number;
+  experienceScore?: number;
+  decision: ScreeningDecision;
+  strengths?: string[];
+  concerns?: string[];
+  suggestions?: string[];
+  skillMatchAnalysis?: {
+    matched?: string[];
+    missing?: string[];
+    [key: string]: any;
+  };
+  experienceAnalysis?: any;
+  projectRelevance?: any;
+  resumeCredibility?: any;
+  aiRecommendation?: string;
+  feedbackSummary?: string;
+  screeningFeedback?: string;
+  detailedFeedback?: any;
+  processingTimeMs?: number;
+  createdAt: string;
 }
 
 export interface Application {
@@ -16,40 +48,41 @@ export interface Application {
   candidateId: string;
   resumeUrl: string;
   coverLetter?: string;
+  githubUrl?: string;
+  portfolioUrl?: string;
   status: ApplicationStatus;
-  screeningScore?: number;
-  screeningReport?: {
+  appliedAt: string;
+  screeningCompletedAt?: string;
+  interviewInvitedAt?: string;
+  updatedAt: string;
+  screeningReport?: ScreeningReport;
+  candidate?: {
     id: string;
-    overallScore: number;
-    skillsMatch: number;
-    experienceMatch: number;
-    cultureFit: number;
-    recommendation: "STRONG_YES" | "YES" | "MAYBE" | "NO" | "STRONG_NO";
-    summary: string;
-    strengths: string[];
-    concerns: string[];
-    interviewSuggestions: string[];
-  };
-  candidate: {
-    id: string;
-    user: {
-      firstName: string;
-      lastName: string;
-      email: string;
-      profilePictureUrl?: string;
-    };
-    currentTitle?: string;
+    phoneNumber?: string;
     location?: string;
-    yearsOfExperience?: number;
+    experience?: number;
+    currentCompany?: string;
+    currentDesignation?: string;
+    githubUrl?: string;
+    portfolioUrl?: string;
+    linkedinUrl?: string;
+    user: {
+      id?: string;
+      firstName?: string;
+      lastName?: string;
+      email: string;
+      avatar?: string;
+    };
   };
-  job: {
+  job?: {
     id: string;
     title: string;
-    companyName: string;
+    description?: string;
+    location?: string;
+    jobType?: string;
+    experienceLevel?: string;
+    companyName?: string;
   };
-  appliedAt: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface ApplicationFilters {
@@ -58,4 +91,6 @@ export interface ApplicationFilters {
   search?: string;
   page?: number;
   limit?: number;
+  sortBy?: "appliedAt" | "score";
+  sortOrder?: "asc" | "desc";
 }

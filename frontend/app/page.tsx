@@ -1,14 +1,28 @@
+import { auth } from '@clerk/nextjs/server';
+import { redirect } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Hero from '@/components/Hero';
 import BentoGrid from '@/components/BentoGrid';
-import Features from '@/components/Features';
-import TwoPathways from '@/components/TwoPathways';
 import Testimonials from '@/components/Testimonials';
 import Pricing from '@/components/Pricing';
 import CTA from '@/components/CTA';
 import Footer from '@/components/Footer';
 
-export default function Home() {
+export default async function Home() {
+  const { userId, sessionClaims } = await auth();
+  if (userId) {
+    const claims = sessionClaims as any;
+    const role =
+      claims?.role ||
+      claims?.publicMetadata?.role ||
+      claims?.public_metadata?.role;
+    const roleUpper = typeof role === 'string' ? role.toUpperCase() : '';
+    if (roleUpper === 'PLATFORM_ADMIN' || roleUpper === 'ADMIN' || roleUpper === 'SUPER_ADMIN') {
+      redirect('/admin/dashboard');
+    }
+    redirect('/candidate/dashboard');
+  }
+
   return (
     <>
       <Navbar />
@@ -17,11 +31,9 @@ export default function Home() {
         <div id="platform">
           <BentoGrid />
         </div>
-        <div id="features">
-          <Features />
+        <div id="testimonials">
+          <Testimonials />
         </div>
-        <TwoPathways />
-        <Testimonials />
         <div id="pricing">
           <Pricing />
         </div>

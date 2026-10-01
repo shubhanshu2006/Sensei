@@ -7,7 +7,7 @@ export enum PaymentStatus {
 
 export interface Payment {
   id: string;
-  userId: string;
+  recruiterId: string;
   amount: number;
   currency: string;
   status: PaymentStatus;
@@ -19,19 +19,38 @@ export interface Payment {
   updatedAt: string;
 }
 
-export interface CreateOrderInput {
-  amount: number;
+export interface CreditPackage {
+  id: "10" | "25" | "50" | "100";
   credits: number;
+  amountInr: number;
+  currency: string;
+  label: string;
+}
+
+export interface CreateOrderInput {
+  creditPackageId: "10" | "25" | "50" | "100";
+}
+
+export interface CreateOrderResponse {
+  id: string; // internal payment ID (orderId)
+  razorpayOrderId: string;
+  amount: number;
+  currency: string;
+  status: string;
 }
 
 export interface VerifyPaymentInput {
   razorpayOrderId: string;
   razorpayPaymentId: string;
   razorpaySignature: string;
+  orderId: string;
 }
 
 export interface CreditBalance {
-  total: number;
-  used: number;
-  remaining: number;
+  interviewCredits: number;
+  subscriptionPlan: string;
+  subscriptionStatus: string;
+  subscriptionEndDate?: string | null;
+  freeTrialCredits: number;
+  freeTrialUsed: boolean;
 }
