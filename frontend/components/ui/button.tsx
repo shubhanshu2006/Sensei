@@ -10,17 +10,19 @@ const buttonVariants = cva(
         default:
           "bg-slate-900 text-white hover:bg-slate-800 shadow-sm hover:shadow-md",
         primary:
-          "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md focus-visible:ring-emerald-500",
+          "bg-gradient-to-r from-orange-500 via-rose-500 to-pink-500 text-white hover:from-orange-600 hover:via-rose-600 hover:to-pink-600 shadow-md shadow-orange-500/20 hover:shadow-lg hover:shadow-orange-500/30 focus-visible:ring-orange-500",
         secondary:
-          "bg-orange-600 text-white hover:bg-orange-700 shadow-sm hover:shadow-md focus-visible:ring-orange-500",
+          "bg-slate-900 text-white hover:bg-slate-800 border border-slate-700/80 shadow-sm",
+        brand:
+          "bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:opacity-95 shadow-md shadow-orange-500/25",
         outline:
-          "border-2 border-slate-300 bg-white hover:bg-slate-50 text-slate-900 hover:border-slate-400",
+          "border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-900 hover:border-slate-300 shadow-xs",
         ghost: "hover:bg-slate-100 text-slate-700 hover:text-slate-900",
         destructive:
           "bg-rose-600 text-white hover:bg-rose-700 shadow-sm hover:shadow-md focus-visible:ring-rose-500",
         success: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm",
         warning: "bg-amber-600 text-white hover:bg-amber-700 shadow-sm",
-        link: "text-emerald-600 underline-offset-4 hover:underline hover:text-emerald-700",
+        link: "text-orange-600 underline-offset-4 hover:underline hover:text-pink-600",
       },
       size: {
         default: "h-11 px-5 py-2.5 text-sm",

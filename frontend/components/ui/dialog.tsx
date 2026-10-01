@@ -15,13 +15,18 @@ export function Dialog({
   children,
   open: controlledOpen,
   onOpenChange,
+  className,
+  maxWidth = "lg",
 }: {
   children: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  className?: string;
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl";
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const open = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
   const setOpen = onOpenChange || setUncontrolledOpen;
 
   // Prevent body scroll when dialog is open
@@ -36,9 +41,68 @@ export function Dialog({
     };
   }, [open]);
 
+  // Check if any child is DialogContent or DialogTrigger
+  const hasCompoundChildren = (
+    Array.isArray(children) ? children : [children]
+  ).some((child: any) => {
+    return (
+      child &&
+      typeof child === "object" &&
+      (child.type === DialogContent || child.type === DialogTrigger)
+    );
+  });
+
+  if (hasCompoundChildren) {
+    return (
+      <DialogContext.Provider value={{ open, setOpen }}>
+        {children}
+      </DialogContext.Provider>
+    );
+  }
+
+  // Direct modal mode used across app pages
+  if (!open) return null;
+
+  const maxWidthClasses = {
+    sm: "max-w-sm",
+    md: "max-w-md",
+    lg: "max-w-lg",
+    xl: "max-w-xl",
+    "2xl": "max-w-2xl",
+  };
+
   return (
     <DialogContext.Provider value={{ open, setOpen }}>
-      {children}
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-in fade-in-0"
+        onClick={() => setOpen(false)}
+      />
+
+      {/* Modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className={cn(
+            "relative w-full rounded-2xl bg-white shadow-2xl",
+            "animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-4",
+            "max-h-[90vh] overflow-y-auto",
+            maxWidthClasses[maxWidth],
+            className
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors z-10"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          {children}
+        </div>
+      </div>
     </DialogContext.Provider>
   );
 }
