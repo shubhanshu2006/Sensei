@@ -1,5 +1,8 @@
 import { prisma } from "../database/client.js";
 import { ApiError } from "../utils/ApiError.js";
+import { clerkClient } from "../config/clerk.js";
+import { logger } from "../utils/logger.js";
+import { emailService } from "./email/EmailService.js";
 
 // Clerk webhook payload types
 export interface ClerkEmailAddress {
@@ -58,6 +61,36 @@ class AuthService {
         status: "ACTIVE",
       },
     });
+
+    // Send welcome email to new user (non-blocking)
+    const alreadySent = (data.public_metadata as any)?.welcomeEmailSent;
+    if (!alreadySent) {
+      try {
+        const userName = [data.first_name, data.last_name].filter(Boolean).join(" ") || undefined;
+        await emailService.sendWelcomeEmail({
+          userEmail: primaryEmail,
+          userName,
+        });
+
+        await clerkClient.users.updateUserMetadata(data.id, {
+          publicMetadata: {
+            ...(data.public_metadata || {}),
+            welcomeEmailSent: true,
+          },
+        });
+
+        logger.info("[AuthService] Welcome email sent successfully on user.created", {
+          clerkId: data.id,
+          email: primaryEmail,
+        });
+      } catch (emailErr) {
+        logger.error("[AuthService] Failed to send welcome email on user.created", {
+          clerkId: data.id,
+          email: primaryEmail,
+          error: emailErr,
+        });
+      }
+    }
   }
 
   /**
@@ -145,7 +178,7 @@ class AuthService {
         );
       }
 
-      return prisma.$transaction(async (tx) => {
+      const updatedUser = await prisma.$transaction(async (tx) => {
         await tx.user.update({
           where: { id: user.id },
           data: { role: "RECRUITER" },
@@ -169,16 +202,128 @@ class AuthService {
           },
         });
       });
-    } else {
-      // CANDIDATE
-      if (user.candidateProfile) {
-        throw new ApiError(
-          409,
-          "A candidate profile already exists for this account",
-        );
+
+      // Synchronize role to Clerk publicMetadata so Next.js middleware has immediate access
+      try {
+        await clerkClient.users.updateUserMetadata(clerkId, {
+          publicMetadata: { role: "RECRUITER" },
+        });
+      } catch (clerkErr) {
+        logger.error("Failed to sync role to Clerk publicMetadata", {
+          clerkId,
+          role: "RECRUITER",
+          error: clerkErr,
+        });
       }
 
-      return prisma.$transaction(async (tx) => {
+      // Ensure welcome email is sent if not already delivered
+      try {
+        const clerkUser = await clerkClient.users.getUser(clerkId).catch(() => null);
+        const welcomeSent = (clerkUser?.publicMetadata as any)?.welcomeEmailSent;
+        if (!welcomeSent && user.email) {
+          const userName = [user.firstName, user.lastName].filter(Boolean).join(" ") || undefined;
+          await emailService.sendWelcomeEmail({
+            userEmail: user.email,
+            userName,
+          });
+          await clerkClient.users.updateUserMetadata(clerkId, {
+            publicMetadata: {
+              ...(clerkUser?.publicMetadata || {}),
+              welcomeEmailSent: true,
+            },
+          });
+          logger.info("[AuthService] Welcome email sent on recruiter profile setup", {
+            clerkId,
+            email: user.email,
+          });
+        }
+      } catch (welcomeErr) {
+        logger.error("[AuthService] Failed to send welcome email during recruiter profile setup", {
+          clerkId,
+          error: welcomeErr,
+        });
+      }
+
+      return updatedUser;
+    } else {
+      // CANDIDATE
+      const resumeUrl = (extraData.resumeUrl as string | undefined) || null;
+      const resumeFileName = (extraData.resumeFileName as string | undefined) || null;
+      const currentDesignation = (extraData.currentDesignation as string | undefined) || null;
+      const experience = typeof extraData.experience === "number" ? extraData.experience : null;
+      const deviceFingerprint = (extraData.deviceFingerprint as string | undefined)?.trim() || null;
+
+      // STRICTURE: Block new signup / account switching if this device fingerprint is already used by another account
+      if (deviceFingerprint) {
+        const existingDeviceProfile = await prisma.candidateProfile.findFirst({
+          where: {
+            deviceFingerprint,
+            userId: { not: user.id },
+          },
+          include: {
+            user: { select: { email: true } },
+          },
+        });
+
+        if (existingDeviceProfile) {
+          logger.warn("[AuthService] Signup blocked: device already registered to another account", {
+            clerkId,
+            userId: user.id,
+            attemptedEmail: user.email,
+            deviceFingerprint,
+            existingAccountEmail: existingDeviceProfile.user?.email,
+          });
+
+          throw new ApiError(
+            403,
+            "This device is already associated with an existing Sensei account. Multiple accounts or account switching is not permitted on the same device.",
+          );
+        }
+      }
+
+      if (user.candidateProfile) {
+        // If candidate profile already exists, update fields and sync role idempotently
+        const updatedUser = await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: user.id },
+            data: { role: "CANDIDATE" },
+          });
+
+          await tx.candidateProfile.update({
+            where: { id: user.candidateProfile!.id },
+            data: {
+              ...(resumeUrl ? { resumeUrl, resumeFileName, resumeUploadedAt: new Date() } : {}),
+              ...(currentDesignation ? { currentDesignation } : {}),
+              ...(experience !== null ? { experience } : {}),
+              ...(deviceFingerprint ? { deviceFingerprint } : {}),
+            },
+          });
+
+          return tx.user.findUniqueOrThrow({
+            where: { id: user.id },
+            include: {
+              recruiterProfile: true,
+              candidateProfile: true,
+            },
+          });
+        });
+
+        try {
+          await clerkClient.users.updateUserMetadata(clerkId, {
+            publicMetadata: { role: "CANDIDATE" },
+          });
+        } catch (clerkErr) {
+          logger.error("Failed to sync role to Clerk publicMetadata", {
+            clerkId,
+            role: "CANDIDATE",
+            error: clerkErr,
+          });
+        }
+
+        return updatedUser;
+      }
+
+      const updatedUser = await prisma.$transaction(async (tx) => {
         await tx.user.update({
           where: { id: user.id },
           data: { role: "CANDIDATE" },
@@ -188,6 +333,12 @@ class AuthService {
           data: {
             userId: user.id,
             practiceCredits: 2,
+            resumeUrl,
+            resumeFileName,
+            resumeUploadedAt: resumeUrl ? new Date() : null,
+            currentDesignation,
+            experience,
+            deviceFingerprint,
           },
         });
 
@@ -199,6 +350,49 @@ class AuthService {
           },
         });
       });
+
+      // Synchronize role to Clerk publicMetadata so Next.js middleware has immediate access
+      try {
+        await clerkClient.users.updateUserMetadata(clerkId, {
+          publicMetadata: { role: "CANDIDATE" },
+        });
+      } catch (clerkErr) {
+        logger.error("Failed to sync role to Clerk publicMetadata", {
+          clerkId,
+          role: "CANDIDATE",
+          error: clerkErr,
+        });
+      }
+
+      // Ensure welcome email is sent if not already delivered
+      try {
+        const clerkUser = await clerkClient.users.getUser(clerkId).catch(() => null);
+        const welcomeSent = (clerkUser?.publicMetadata as any)?.welcomeEmailSent;
+        if (!welcomeSent && user.email) {
+          const userName = [user.firstName, user.lastName].filter(Boolean).join(" ") || undefined;
+          await emailService.sendWelcomeEmail({
+            userEmail: user.email,
+            userName,
+          });
+          await clerkClient.users.updateUserMetadata(clerkId, {
+            publicMetadata: {
+              ...(clerkUser?.publicMetadata || {}),
+              welcomeEmailSent: true,
+            },
+          });
+          logger.info("[AuthService] Welcome email sent on profile setup", {
+            clerkId,
+            email: user.email,
+          });
+        }
+      } catch (welcomeErr) {
+        logger.error("[AuthService] Failed to send welcome email during profile setup", {
+          clerkId,
+          error: welcomeErr,
+        });
+      }
+
+      return updatedUser;
     }
   }
 
@@ -223,6 +417,7 @@ class AuthService {
         updatedAt: true,
         recruiterProfile: true,
         candidateProfile: true,
+        adminProfile: true,
       },
     });
 
@@ -231,6 +426,50 @@ class AuthService {
     }
 
     return user;
+  }
+
+  /**
+   * Checks whether a device fingerprint is already bound to an existing candidate account.
+   * If yes, blocks account switching and new signups.
+   */
+  async checkDeviceFingerprint(visitorId: string): Promise<{
+    isRegistered: boolean;
+    message?: string;
+    maskedEmail?: string;
+  }> {
+    if (!visitorId || typeof visitorId !== "string") {
+      return { isRegistered: false };
+    }
+
+    const trimmed = visitorId.trim();
+    const existing = await prisma.candidateProfile.findFirst({
+      where: { deviceFingerprint: trimmed },
+      include: { user: { select: { email: true } } },
+    });
+
+    if (existing && existing.user?.email) {
+      const email = existing.user.email;
+      const [name, domain] = email.split("@");
+      let maskedEmail = email;
+      if (domain) {
+        if (name.length <= 1) {
+          maskedEmail = `${name}***@${domain}`;
+        } else if (name.length === 2) {
+          maskedEmail = `${name[0]}***@${domain}`;
+        } else {
+          maskedEmail = `${name[0]}***${name[name.length - 1]}@${domain}`;
+        }
+      }
+
+      return {
+        isRegistered: true,
+        maskedEmail,
+        message:
+          "This device is already associated with an existing Sensei account. Creating multiple accounts or switching accounts is not permitted on the same device.",
+      };
+    }
+
+    return { isRegistered: false };
   }
 }
 

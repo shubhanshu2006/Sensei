@@ -39,6 +39,13 @@ class AuthController {
       );
     }
 
+    if (!config.clerk.webhookSecret) {
+      throw new ApiError(
+        500,
+        "Clerk webhook secret is not configured on this server",
+      );
+    }
+
     // Decode the webhook signing secret (format: "whsec_<base64>")
     const rawSecret = config.clerk.webhookSecret.replace(/^whsec_/, "");
     const secretBytes = Buffer.from(rawSecret, "base64");
@@ -111,7 +118,17 @@ class AuthController {
       throw new ApiError(401, "Authentication required");
     }
 
-    const { role, companyName, firstName, lastName } = req.body as SignupInput;
+    const {
+      role,
+      companyName,
+      firstName,
+      lastName,
+      resumeUrl,
+      resumeFileName,
+      currentDesignation,
+      experience,
+      deviceFingerprint,
+    } = req.body as SignupInput;
 
     const updatedUser = await authService.setupUserProfile(
       req.user.clerkId,
@@ -120,6 +137,11 @@ class AuthController {
         companyName,
         firstName,
         lastName,
+        resumeUrl: resumeUrl || undefined,
+        resumeFileName: resumeFileName || undefined,
+        currentDesignation: currentDesignation || undefined,
+        experience: experience ?? undefined,
+        deviceFingerprint: deviceFingerprint || undefined,
       },
     );
 
@@ -132,6 +154,20 @@ class AuthController {
           "Profile setup completed successfully",
         ),
       );
+  });
+
+  /**
+   * POST /auth/check-device
+   *
+   * Public check to see if this browser / device is already bound to an existing account.
+   */
+  checkDevice = asyncHandler(async (req: Request, res: Response) => {
+    const { visitorId } = req.body as { visitorId?: string };
+    const result = await authService.checkDeviceFingerprint(visitorId || "");
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, result, "Device status retrieved"));
   });
 
   /**
