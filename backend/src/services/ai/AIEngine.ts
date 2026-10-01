@@ -181,7 +181,7 @@ Return JSON: {"isCorrect": true or false, "issue": "1-sentence description of th
     resumeText?: string;
     conversationHistory?: string;
   }): Promise<{
-    quality: 'strong' | 'adequate' | 'weak' | 'vague' | 'incorrect';
+    quality: 'strong' | 'adequate' | 'weak' | 'vague' | 'incorrect' | 'off_topic' | 'abusive';
     isCorrect: boolean;
     correctnessIssue: string;
     gap: string;
@@ -215,34 +215,45 @@ Question asked: {question}
 Candidate's full answer: {answer}
 --- END ---
 
-Evaluate the answer on these 4 dimensions:
-1. CORRECTNESS: Are the factual/technical claims accurate? Are there any objectively wrong statements?
-2. DEPTH: Does the answer show genuine understanding or just surface-level knowledge?
-3. RELEVANCE: Does the answer actually address the question, or does it dodge/deflect?
-4. SPECIFICITY: Does the answer include concrete examples, metrics, or details — or is it generic?
+Perform a comprehensive analysis on the following dimensions:
+1. CANDIDATE INTENT & INTERVIEW CONTEXT:
+   - Is the candidate engaging with the interview?
+   - CLARIFICATION REQUESTS: If the candidate says "I didn't understand", "Could you clarify?", "Can you explain what you mean?", "Could you repeat that?", "I don't follow", or similar expressions, this is a normal clarification request directly about the interview question. It is NOT off-topic and NOT abusive.
+   - ADMISSION OF KNOWLEDGE GAP: If the candidate says "I don't know", "I am not sure", "I have no idea", "Haven't worked with that", "I can't recall", they are honestly admitting they do not know the answer. This is a legitimate interview answer demonstrating a knowledge gap. It is NOT off-topic and NOT abusive.
+   - OFF-TOPIC DIVERSION: The candidate is completely abandoning the interview to ask the interviewer unrelated questions (e.g. asking "who is the PM of India", "who created you", "what is the weather", talking about politics, sports, movies, personal questions to the interviewer, or casual non-interview chit-chat).
+2. PROFESSIONAL CONDUCT:
+   - Does the response contain profanity, foul language, slurs, threats, sexually explicit language, or hostile insults (e.g. "fuck off", "stfu", vulgar abuses)?
+3. TECHNICAL / FACTUAL CORRECTNESS:
+   - Are the technical statements correct? Did they make confident but objectively incorrect assertions?
+4. DEPTH & SPECIFICITY:
+   - Does the answer demonstrate deep architectural/practical understanding, or is it shallow/generic?
 
-Based on your evaluation, classify the answer:
+Based on your analysis, classify the quality into EXACTLY one of these categories:
+- "abusive": Candidate used profanity, slurs, vulgarity, threats, or abusive/hostile language (e.g. "fuck off", "shut up", vulgar insults). This takes HIGHEST priority.
+- "off_topic": Candidate is NOT answering or attempting to engage with the interview topic. Instead, they are deliberately asking unrelated non-interview questions (e.g. "who is the PM of India", "who created you", "what's the weather", chatting about personal life, politics, movies, etc.) or derailing the session.
+  CRITICAL: NEVER classify as "off_topic" if the candidate says they didn't understand ("I didn't understand", "can you clarify?"). That is a clarification request, classified as "vague".
+  CRITICAL: NEVER classify as "off_topic" if the candidate says they don't know ("I don't know", "not sure"). That is an admission of lack of knowledge, classified as "weak".
 - "strong": Correct, deep, relevant, and specific. Demonstrates genuine expertise.
 - "adequate": Mostly correct and relevant, but could be deeper or more specific.
-- "weak": Shallow, generic, or largely misses the point. Shows limited understanding.
-- "vague": Non-committal, evasive, or too short to evaluate. Candidate is dodging.
-- "incorrect": Contains clear factual/technical errors that the candidate stated confidently.
+- "weak": Shallow, generic, largely misses the point, or candidate admits they do not know / have not worked with the concept ("I don't know", "not sure", "no idea").
+- "vague": Candidate expresses that they did not understand the question ("I didn't understand", "can you explain?", "what do you mean?"), or gives an evasive, non-committal, or excessively brief answer.
+- "incorrect": Contains clear factual or technical errors that the candidate stated confidently.
 
 Return JSON:
 {
-  "quality": "strong" | "adequate" | "weak" | "vague" | "incorrect",
+  "quality": "strong" | "adequate" | "weak" | "vague" | "incorrect" | "off_topic" | "abusive",
   "isCorrect": true or false,
   "correctnessIssue": "1-sentence description of the specific inaccuracy if incorrect, otherwise empty string",
-  "gap": "1-sentence description of the most important thing missing, vague or unproven in the answer that a follow-up question should target (empty string if strong)",
-  "reasoning": "1-sentence explanation of why you chose this quality rating"
+  "gap": "1-sentence description of what is missing, unclear, or what clarification is needed (empty string if strong)",
+  "reasoning": "1-sentence explanation of why you chose this quality rating based on normal analysis"
 }
 
 RULES:
-- Be fair but rigorous. An incomplete answer is "weak", not "incorrect".
-- Only mark "incorrect" for objectively wrong claims, not opinions or debatable points.
-- Judge against what the job description actually demands, and flag claims that contradict the resume.
-- A long but generic answer that doesn't address the actual question is "weak" or "vague", not "strong".
-- If quality is "incorrect", isCorrect MUST be false and correctnessIssue MUST be filled in.`,
+- "abusive" is strictly for vulgar, profane, threatening, or hostile language.
+- "off_topic" is strictly for genuine non-interview diversions (asking general knowledge questions to interviewer, small talk, derailing).
+- "I didn't understand", "Could you rephrase?", "What do you mean?", "Can you explain?" MUST be classified as "vague" with gap noting that the candidate needs the question rephrased or clarified.
+- "I don't know", "I am not sure", "I have no idea", "I haven't worked with that" MUST be classified as "weak" with gap noting candidate's unfamiliarity with the topic.
+- Be fair and objective. Judge against what the job description actually demands.`,
         {
           question: input.question,
           answer: input.answer,
@@ -257,13 +268,20 @@ RULES:
         { temperature: 0.15, maxTokens: 1200, useFastModel: true, timeoutMs: 12000 },
       );
 
-      const validQualities = ['strong', 'adequate', 'weak', 'vague', 'incorrect'];
+      const validQualities = ['strong', 'adequate', 'weak', 'vague', 'incorrect', 'off_topic', 'abusive'];
       const quality = validQualities.includes(result.quality) ? result.quality as any : 'adequate';
       const isIncorrect = quality === 'incorrect' || result.isCorrect === false;
 
+      let resolvedQuality = quality;
+      if (quality !== 'off_topic' && quality !== 'abusive') {
+        if (isIncorrect && quality !== 'incorrect' && result.correctnessIssue) {
+          resolvedQuality = 'incorrect';
+        }
+      }
+
       return {
-        quality: isIncorrect && quality !== 'incorrect' && result.correctnessIssue ? 'incorrect' : quality,
-        isCorrect: !isIncorrect,
+        quality: resolvedQuality,
+        isCorrect: quality === 'off_topic' || quality === 'abusive' ? false : !isIncorrect,
         correctnessIssue: result.correctnessIssue || '',
         gap: result.gap || '',
         reasoning: result.reasoning || '',
@@ -272,6 +290,80 @@ RULES:
       logger.warn("[AIEngine] Answer evaluation failed", error);
       throw error;
     }
+  }
+
+  // generateReframedWarningQuestion
+  // Dynamically generates a reframed question after off-topic or abusive behavior
+  // instead of verbatim copy-pasting the previous question.
+
+  async generateReframedWarningQuestion(input: {
+    candidateName: string;
+    jobTitle: string;
+    topic: string;
+    baseQuestion: string;
+    type: 'off_topic' | 'abusive';
+    candidateAnswer: string;
+  }): Promise<string> {
+    try {
+      const { llmClient } = await import("./LLMClient.js");
+
+      const prompt = `You are a sharp, authoritative, and professional senior interviewer conducting a live interview for {jobTitle}.
+Candidate Name: {candidateName}
+Role: {jobTitle}
+Core Topic: {topic}
+Original Question Context: {baseQuestion}
+Candidate's Inappropriate Response: "{candidateAnswer}"
+
+Situation:
+The candidate just responded inappropriately with {violationType}:
+{violationGuidance}
+
+YOUR TASK:
+Speak directly to {candidateName} in 2 to 3 natural spoken sentences total:
+1. ADDRESS THE BEHAVIOR FIRMLY:
+   - If ABUSIVE: Issue a strict, professional warning that foul, disrespectful, or abusive language is unacceptable and grounds for immediate disqualification, and demand professional conduct.
+   - If OFF-TOPIC: Firmly remind them that you are strictly here for the {jobTitle} interview, decline to answer their non-interview query, and tell them to stay focused on the interview.
+2. REFRAME THE QUESTION NATURALLY (CRITICAL):
+   - DO NOT copy-paste the original question verbatim.
+   - DO NOT use boilerplate prefixes like "Now, let's return to the question:".
+   - DO NOT include opening greetings or pleasantries (no "Welcome", "Thank you for joining us").
+   - Frame a fresh, direct, and concise technical question targeting {topic}.
+   - Demand concrete depth on how they would solve or implement it.
+
+RULES:
+- ZERO HALLUCINATION (STRICT): Only reference what the candidate actually said in "{candidateAnswer}". Never invent or hallucinate topics they did not ask about (e.g. NEVER mention war, politics, or random unrelated subjects that the candidate did not explicitly say).
+- Total length: exactly 2 to 3 spoken sentences.
+- Speak naturally and authoritatively like a seasoned human interviewer.
+- Return ONLY the exact words spoken by the interviewer. Never include prefixes like "Interviewer:" or quotation marks.`;
+
+      const violationType = input.type === 'abusive' ? 'ABUSIVE / PROFANE LANGUAGE' : 'OFF-TOPIC NON-INTERVIEW QUERY';
+      const violationGuidance = input.type === 'abusive'
+        ? 'The candidate used profanity, slurs, or abusive language.'
+        : 'The candidate asked unrelated questions (e.g. general knowledge, personal questions, who created you) instead of answering the interview question.';
+
+      const result = await llmClient.generateText(prompt, {
+        candidateName: input.candidateName,
+        jobTitle: input.jobTitle,
+        topic: input.topic,
+        baseQuestion: input.baseQuestion,
+        candidateAnswer: input.candidateAnswer,
+        violationType,
+        violationGuidance,
+      }, { temperature: 0.25, maxTokens: 350, useFastModel: true });
+
+      const cleaned = result.trim().replace(/^["']|["']$/g, '');
+      if (cleaned.length > 20) {
+        return cleaned;
+      }
+    } catch (err) {
+      logger.warn("[AIEngine] generateReframedWarningQuestion failed, using fallback", err);
+    }
+
+    // High quality fallback if LLM call fails
+    if (input.type === 'abusive') {
+      return `${input.candidateName}, I must issue a strict warning: abusive or disrespectful language is completely unacceptable and grounds for immediate disqualification. Please maintain professional conduct. Now, tell me specifically how you approach ${input.topic} in production.`;
+    }
+    return `${input.candidateName}, we are here strictly for your ${input.jobTitle} interview, not for general knowledge or unrelated topics. Let's focus on your technical capabilities. To proceed, could you explain how you handle ${input.topic}?`;
   }
 
   async generateInterviewScorecard(input: {

@@ -363,32 +363,70 @@ export class InterviewSocketServer {
             );
 
             // Check if candidate verbally or in text requested to end the interview
-            const normalizedText = transcribedText.trim().toLowerCase().replace(/[.,!?;:'"]/g, "");
+            const normalizedText = transcribedText.trim().toLowerCase().replace(/[.,!?;:'"()]/g, "");
+            const words = normalizedText.split(/\s+/).filter(Boolean);
+            const wordCount = words.length;
+
+            const standaloneEndWords = new Set([
+              "end",
+              "finish",
+              "stop",
+              "quit",
+              "terminate",
+              "exit",
+              "done",
+            ]);
+
             const endPhrases = [
-              "end the interview",
-              "stop the interview",
-              "finish the interview",
-              "quit the interview",
-              "terminate the interview",
               "end interview",
-              "stop interview",
               "finish interview",
+              "stop interview",
               "quit interview",
               "terminate interview",
+              "end the interview",
+              "finish the interview",
+              "stop the interview",
+              "quit the interview",
+              "terminate the interview",
+              "end this interview",
+              "finish this interview",
+              "stop this interview",
               "i want to end",
+              "i want to finish",
               "i want to stop",
               "can we end",
+              "can we finish",
+              "can we stop",
               "please end",
+              "please finish",
+              "please stop",
+              "lets end",
+              "let's end",
+              "lets finish",
+              "let's finish",
               "wrap up the interview",
+              "wrap up interview",
+              "wrap up",
+              "wrap this up",
               "close the interview",
+              "close interview",
+              "we can end",
+              "we can finish",
+              "im done",
+              "i am done",
+              "we are done",
             ];
-            // Only short messages count as an end request. A long answer that happens to
-            // contain e.g. "I want to stop the process..." is a real answer, not a command.
-            const wordCount = normalizedText.split(/\s+/).filter(Boolean).length;
+
+            // Only short messages (<= 10 words) count as an end request to prevent
+            // misidentifying real technical answers that happen to contain "end" or "finish".
             const isEndingInterview =
-              wordCount <= 15 &&
-              (endPhrases.some((phrase) => normalizedText.includes(phrase)) ||
-                /^(end|stop|quit|finish|terminate|exit)\s*(the\s*)?interview$/i.test(normalizedText));
+              wordCount <= 10 &&
+              (
+                standaloneEndWords.has(normalizedText) ||
+                endPhrases.some((phrase) => normalizedText.includes(phrase)) ||
+                /^(please\s+)?(end|finish|stop|quit|terminate|exit)(\s+the|\s+this)?(\s+interview)?$/i.test(normalizedText) ||
+                /^(i\s+(?:want|would\s+like)\s+to|can\s+we|could\s+we)\s+(?:end|finish|stop|quit|wrap\s+up)(\s+the|\s+this)?(\s+interview)?$/i.test(normalizedText)
+              );
 
             // Store answer in transcript with metadata
             if (isEndingInterview) {
@@ -399,6 +437,15 @@ export class InterviewSocketServer {
                   where: { id: session.transcript.id },
                   data: {
                     rawTranscript: `${session.transcript.rawTranscript || ""}\n\n[Candidate ended the interview before answering Q${data.questionIndex + 1}]`,
+                  },
+                });
+              } else {
+                await prisma.interviewTranscript.create({
+                  data: {
+                    sessionId,
+                    conversationHistory: [],
+                    rawTranscript: `[Candidate ended the interview before answering Q${data.questionIndex + 1}]`,
+                    qaData: [],
                   },
                 });
               }
@@ -470,15 +517,25 @@ export class InterviewSocketServer {
                 text: transcribedText,
               });
 
-              socket.emit("question", {
+              const wrapUpText = `Understood, ${candidateName}. We will wrap up the interview here. Thank you for your time, and your scorecard is being generated now.`;
+
+              let wrapUpAudio: string | undefined;
+              try {
+                wrapUpAudio = await aiEngine.generateSpeech(wrapUpText, "alloy");
+              } catch (audioErr) {
+                logger.warn("[WebSocket] Failed to generate wrap-up audio", audioErr);
+              }
+
+              this.io.to(`session:${sessionId}`).emit("question", {
                 questionIndex: data.questionIndex + 1,
-                question: `Understood, ${candidateName}. We will wrap up the interview here. Thank you for your time, and your scorecard is being generated now.`,
+                question: wrapUpText,
+                questionAudio: wrapUpAudio,
                 totalQuestions: data.questionIndex + 1,
               });
 
               setTimeout(async () => {
                 await this.completeSession(sessionId);
-              }, 1800);
+              }, 2500);
               return;
             }
 
@@ -578,8 +635,32 @@ export class InterviewSocketServer {
   // Helper: Assess answer quality for adaptive cross-questioning
   // Uses fast heuristics (no LLM call) to detect weak/vague answers
 
-  private assessAnswerQuality(answer: string): 'strong' | 'adequate' | 'weak' | 'vague' {
+  private assessAnswerQuality(answer: string): 'strong' | 'adequate' | 'weak' | 'vague' | 'off_topic' | 'abusive' {
     const trimmed = answer.trim();
+
+    // Clarification or comprehension requests ("I didn't understand", "could you clarify", etc.)
+    if (/\b(?:didn'?t|don'?t|do\s+not)\s+understand\b/i.test(trimmed) || /\b(?:clarify|explain\s+the\s+question|what\s+do\s+you\s+mean)\b/i.test(trimmed)) {
+      return 'vague';
+    }
+
+    // Fast heuristic check for profanity/abusive language
+    const abusivePatterns = [
+      /\b(fuck|shit|bitch|bastard|asshole|dick|cunt|motherfucker|fucker)\b/i,
+      /\b(kill yourself|stfu|shut the fuck up|go to hell)\b/i,
+    ];
+    if (abusivePatterns.some(p => p.test(trimmed))) {
+      return 'abusive';
+    }
+
+    // Fast heuristic check for off-topic non-interview questions directed at interviewer
+    const offTopicPatterns = [
+      /\bwho\s+(?:is|was)\s+(?:the\s+)?(?:pm|prime minister|president|ceo|owner|founder)\b/i,
+      /\bwho\s+(?:are\s+you|made\s+you|created\s+you|owns\s+you|built\s+you)\b/i,
+      /\b(?:what\s+is\s+the\s+weather|tell\s+me\s+a\s+joke)\b/i,
+    ];
+    if (offTopicPatterns.some(p => p.test(trimmed))) {
+      return 'off_topic';
+    }
 
     // Very short or empty responses
     if (trimmed.length < 20) return 'vague';
@@ -663,6 +744,7 @@ export class InterviewSocketServer {
           },
           transcript: {
             select: {
+              id: true,
               qaData: true,
             },
           },
@@ -754,7 +836,11 @@ export class InterviewSocketServer {
           candidateProfile?.experience ? `Experience: ${candidateProfile.experience} years` : '',
         ].filter(Boolean).join(', ');
 
-        resumeText = `[Candidate: ${candidateName}${profileDetails ? ` (${profileDetails})` : ''}. Target Role: ${jobContext.title}. Job Required Skills: ${(jobContext.requiredSkills as string[]).join(", ")}. Do NOT fabricate any past company, project, or domain experience.]`;
+        const skillsText =
+          Array.isArray(jobContext.requiredSkills) && (jobContext.requiredSkills as string[]).length > 0
+            ? ` Job Required Skills: ${(jobContext.requiredSkills as string[]).join(", ")}.`
+            : '';
+        resumeText = `[Candidate: ${candidateName}${profileDetails ? ` (${profileDetails})` : ''}. Target Role: ${jobContext.title}.${skillsText} Do NOT fabricate any past company, project, or domain experience.]`;
       }
 
       // Extract QA history from transcript
@@ -790,20 +876,23 @@ export class InterviewSocketServer {
 
       // Evaluate every answer via LLM for adaptive cross-questioning.
       // The evaluator gets the full Q&A plus the job description, resume and prior turns.
-      const requiredSkillsList = jobContext.requiredSkills as string[];
+      const requiredSkillsList = Array.isArray(jobContext.requiredSkills)
+        ? (jobContext.requiredSkills as string[])
+        : [];
       // Prefer the topic recorded when the question was generated; the round-robin guess
       // is only a fallback for sessions created before topics were persisted.
       const lastAnswerTopic: string | undefined = questionIndex > 0
         ? lastQa?.topic ||
-          requiredSkillsList[(questionIndex - 1) % Math.max(1, requiredSkillsList.length)] ||
-          undefined
+          (requiredSkillsList.length > 0
+            ? requiredSkillsList[(questionIndex - 1) % requiredSkillsList.length]
+            : undefined)
         : undefined;
       const lastFollowUpDepth: number = Number(lastQa?.followUpDepth) || 0;
       const askedTopics: string[] = qaData
         .filter((qa: any) => qa.topic && !qa.isFollowUp)
         .map((qa: any) => qa.topic as string);
 
-      let finalQuality: 'strong' | 'adequate' | 'weak' | 'vague' | 'incorrect' | undefined = undefined;
+      let finalQuality: 'strong' | 'adequate' | 'weak' | 'vague' | 'incorrect' | 'off_topic' | 'abusive' | undefined = undefined;
       let correctnessIssue: string | undefined;
       let probeFocus: string | undefined;
       let evaluationRecord: Record<string, any> | undefined;
@@ -870,6 +959,99 @@ export class InterviewSocketServer {
           topic: lastAnswerTopic,
           correctnessIssue,
         });
+      }
+
+      // --- Handle off-topic or abusive answers ---
+      // When the candidate sends a non-interview response (random questions, chatting)
+      // or uses foul/abusive language, DO NOT advance the question counter.
+      // Instead, send a firm warning/redirection and dynamically reframe the question.
+      if (finalQuality === 'off_topic' || finalQuality === 'abusive') {
+        logger.warn('[WebSocket] Answer flagged as off-topic or abusive — not advancing', {
+          sessionId,
+          questionIndex,
+          quality: finalQuality,
+          reasoning: evaluationRecord?.reasoning,
+        });
+
+        // Retrieve the clean base question (strip out any previous warning text or greetings)
+        const rawQuestion = (lastQa as any)?.baseQuestion || lastQa?.question || '';
+        const cleanBaseQuestion = rawQuestion
+          .replace(/^.*?(?:return to the question:|\bplease answer the question:)\s*/is, '')
+          .replace(/^Welcome,\s+[^.]+\.\s*/i, '')
+          .trim() || rawQuestion || 'Please explain your technical approach to this challenge.';
+
+        // Dynamically generate a reframed warning + question from AI (not copy-pasted!)
+        const fullResponseText = await aiEngine.generateReframedWarningQuestion({
+          candidateName,
+          jobTitle: jobContext.title,
+          topic: lastAnswerTopic || 'the role competencies',
+          baseQuestion: cleanBaseQuestion,
+          type: finalQuality,
+          candidateAnswer: lastAnswer,
+        });
+
+        // Generate unified voice audio for the reframed question
+        let warningAudio: string | undefined;
+        try {
+          warningAudio = await aiEngine.generateSpeech(fullResponseText, "alloy");
+        } catch (audioErr) {
+          logger.warn("[WebSocket] Failed to generate warning audio", audioErr);
+        }
+
+        // Persist evaluation into transcript so it is recorded
+        if (evaluationRecord) {
+          try {
+            const tr = await prisma.interviewTranscript.findUnique({
+              where: { sessionId },
+            });
+            if (tr) {
+              const currentQaData = (tr.qaData as any[]) || [];
+              const evaluatedItem = currentQaData.find((item: any) => item.questionIndex === questionIndex - 1);
+              if (evaluatedItem) {
+                evaluatedItem.evaluation = evaluationRecord;
+                evaluatedItem.warningIssued = finalQuality;
+                evaluatedItem.baseQuestion = cleanBaseQuestion;
+              }
+              await prisma.interviewTranscript.update({
+                where: { id: tr.id },
+                data: { qaData: currentQaData },
+              });
+            }
+          } catch (trErr) {
+            logger.warn("[WebSocket] Failed to persist warning evaluation into transcript", trErr);
+          }
+        }
+
+        // Emit interview-warning to session room and socket
+        const warningPayload = {
+          type: finalQuality,
+          message: finalQuality === 'abusive' ? 'Conduct Warning: Inappropriate language' : 'Interview Redirection: Please stay on topic',
+          question: cleanBaseQuestion,
+          fullResponse: fullResponseText,
+          warningAudio,
+        };
+        this.io.to(`session:${sessionId}`).emit("interview-warning", warningPayload);
+
+        // Re-emit question with dynamically reframed text + unified audio
+        const reaskPayload = {
+          questionIndex: questionIndex - 1,
+          question: fullResponseText,
+          originalQuestion: cleanBaseQuestion,
+          questionAudio: warningAudio,
+          totalQuestions: session.totalQuestions || 10,
+          isReask: true,
+          isWarning: true,
+          warningType: finalQuality,
+        };
+        this.io.to(`session:${sessionId}`).emit("question", reaskPayload);
+
+        // Revert session currentQuestionIndex so progress counter doesn't jump
+        await prisma.interviewSession.update({
+          where: { id: sessionId },
+          data: { currentQuestionIndex: questionIndex - 1 },
+        });
+
+        return;
       }
 
       const weakTopics = sessionWeakTopics.get(sessionId) || [];

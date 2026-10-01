@@ -105,6 +105,7 @@ SCORING RULES (apply strictly):
 - Score ONLY what the candidate demonstrated in the transcript, judged against the Job Description requirements. Use the resume only to check consistency with claims, never to award credit for things not shown in answers.
 - Every question/answer pair counts. Wrong, vague, evasive or unanswered responses must lower the relevant dimension scores; do not average them away.
 - Questions marked [cross-question ...] were follow-ups to a weak or vague answer. Weigh whether the candidate improved, doubled down, or self-corrected. "Live assessment" notes are hints from the interviewer, not final verdicts.
+- If the candidate engaged in abusive/vulgar language or repeatedly attempted to derail the interview with off-topic queries (e.g. asking general knowledge or personal questions instead of answering), penalize communicationScore and cultureFitScore severely, and document the unprofessional conduct in weaknesses and interviewerNotes.
 - Use the full 0-100 range. 0-39 poor, 40-59 below the bar, 60-74 acceptable, 75-89 strong, 90-100 exceptional. Score 0 is valid if a dimension was not demonstrated at all.
 - overallScore must be consistent with the four dimension scores. Never lower any score or the overall score because a JD skill or topic was not asked about; only what the candidate actually answered counts.
 - Also include these extra JSON fields, each 1-2 sentences citing specific answers (e.g. "Q3") as evidence:
