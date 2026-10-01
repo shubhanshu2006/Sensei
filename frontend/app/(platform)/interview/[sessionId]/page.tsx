@@ -43,6 +43,8 @@ interface Message {
   role: "ai" | "candidate";
   content: string;
   timestamp: Date;
+  isWarning?: boolean;
+  warningType?: "off_topic" | "abusive";
 }
 
 export default function InterviewRoomPage() {
@@ -211,6 +213,8 @@ export default function InterviewRoomPage() {
             role: "ai",
             content: qData.question,
             timestamp: new Date(),
+            isWarning: qData.isWarning,
+            warningType: qData.warningType,
           },
         ];
       });
@@ -252,6 +256,9 @@ export default function InterviewRoomPage() {
           setIsAISpeaking(false);
         }
       }
+    },
+    onWarning: () => {
+      setIsAIThinking(false);
     },
     onTranscription: (transData) => {
       setMessages((prev) => {
@@ -812,12 +819,39 @@ export default function InterviewRoomPage() {
                     className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
                       m.role === "candidate"
                         ? "bg-gradient-to-r from-orange-500 via-rose-500 to-pink-500 text-white shadow-xs"
+                        : m.isWarning && m.warningType === "abusive"
+                        ? "bg-red-50 text-red-950 border border-red-300 shadow-xs"
+                        : m.isWarning && m.warningType === "off_topic"
+                        ? "bg-amber-50 text-amber-950 border border-amber-300 shadow-xs"
                         : "bg-slate-50 text-slate-800 border border-slate-200/80 shadow-xs"
                     }`}
                   >
-                    <p className={`font-mono font-semibold text-[10px] mb-1 ${m.role === "candidate" ? "text-white/80" : "text-slate-500"}`}>
-                      {m.role === "ai" ? "Sensei AI Interviewer" : "You (Candidate)"}
-                    </p>
+                    <div className="flex items-center justify-between font-mono font-semibold text-[10px] mb-1">
+                      <span
+                        className={
+                          m.role === "candidate"
+                            ? "text-white/80"
+                            : m.isWarning && m.warningType === "abusive"
+                            ? "text-red-700 font-bold"
+                            : m.isWarning && m.warningType === "off_topic"
+                            ? "text-amber-700 font-bold"
+                            : "text-slate-500"
+                        }
+                      >
+                        {m.role === "candidate"
+                          ? "You (Candidate)"
+                          : m.isWarning && m.warningType === "abusive"
+                          ? "⚠️ Conduct Warning"
+                          : m.isWarning && m.warningType === "off_topic"
+                          ? "🎯 Interview Redirection"
+                          : "Sensei AI Interviewer"}
+                      </span>
+                      {m.isWarning && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/70 font-sans font-medium text-slate-600 border border-slate-200">
+                          Focus Required
+                        </span>
+                      )}
+                    </div>
                     <p className="whitespace-pre-wrap">{m.content}</p>
                   </div>
                 </div>
