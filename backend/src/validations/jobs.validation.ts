@@ -84,6 +84,11 @@ const jobBaseObject = z.object({
 
 export const createJobSchema = jobBaseObject
   .extend({
+    screeningConfig: screeningConfigSchema.default({
+      resume: true,
+      github: false,
+      portfolio: false,
+    }),
     screeningMode: screeningModeEnum.default("ASSISTED"),
     autoInviteThreshold: z.number().min(0).max(100).default(80),
   })
