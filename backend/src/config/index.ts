@@ -22,7 +22,7 @@ const envSchema = z.object({
 
   // Clerk Authentication
   CLERK_SECRET_KEY: z.string().startsWith("sk_"),
-  CLERK_WEBHOOK_SECRET: z.string().startsWith("whsec_"),
+  CLERK_WEBHOOK_SECRET: z.string().optional().default(""),
 
   // Redis (optional for development, required for production)
   REDIS_URL: z.string().optional(),
@@ -40,14 +40,21 @@ const envSchema = z.object({
   AWS_S3_BUCKET_NAME: z.string().min(1),
   AWS_REGION: z.string().default("ap-south-1"),
 
-  // AI (Gemini)
-  GOOGLE_API_KEY: z.string().min(1),
-  GEMINI_MODEL: z.string().default("gemini-1.5-pro"),
+  // AI (Groq & Gemini)
+  GROQ_API_KEY: z.string().optional().default(""),
+  GROQ_PRIMARY_MODEL: z.string().default("openai/gpt-oss-120b"),
+  GROQ_FAST_MODEL: z.string().default("openai/gpt-oss-20b"),
+  GROQ_WHISPER_MODEL: z.string().default("whisper-large-v3-turbo"),
+  GOOGLE_API_KEY: z.string().optional().default(""),
+  GEMINI_MODEL: z.string().default("gemini-3.8-flash"),
 
-  // Payment (Razorpay)
+  // Payment (Razorpay & UPI QR)
   RAZORPAY_KEY_ID: z.string().startsWith("rzp_"),
   RAZORPAY_KEY_SECRET: z.string().min(1),
   RAZORPAY_WEBHOOK_SECRET: z.string().startsWith("whsec_"),
+  PAYMENT_UPI_ID: z.string().default("sensei@upi"),
+  PAYMENT_UPI_NAME: z.string().default("Sensei AI"),
+  PAYMENT_MODE: z.enum(["QR_CODE", "RAZORPAY"]).default("QR_CODE"),
 
   // Email (Brevo)
   BREVO_API_KEY: z.string().min(1),
@@ -161,6 +168,13 @@ export const config = {
     region: env.AWS_REGION,
   },
 
+  groq: {
+    apiKey: env.GROQ_API_KEY,
+    primaryModel: env.GROQ_PRIMARY_MODEL,
+    fastModel: env.GROQ_FAST_MODEL,
+    whisperModel: env.GROQ_WHISPER_MODEL,
+  },
+
   gemini: {
     apiKey: env.GOOGLE_API_KEY,
     model: env.GEMINI_MODEL,
@@ -170,6 +184,9 @@ export const config = {
     razorpayKeyId: env.RAZORPAY_KEY_ID,
     razorpayKeySecret: env.RAZORPAY_KEY_SECRET,
     razorpayWebhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
+    upiId: env.PAYMENT_UPI_ID,
+    upiName: env.PAYMENT_UPI_NAME,
+    mode: env.PAYMENT_MODE,
   },
 
   brevo: {
@@ -217,7 +234,6 @@ export const validateConfig = () => {
     const productionChecks = {
       "JWT_SECRET length": config.security.jwtSecret.length >= 32,
       "Redis configured": config.redis.url !== "",
-      "FingerprintJS configured": config.fingerprint.apiKey !== "",
     };
 
     const failed = Object.entries(productionChecks)
