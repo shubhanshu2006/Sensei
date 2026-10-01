@@ -8,6 +8,7 @@ import { prisma } from "../../database/client.js";
 import { ApiError } from "../../utils/ApiError.js";
 import { SessionTimeoutManager } from "./SessionTimeoutManager.js";
 import { aiEngine } from "../ai/AIEngine.js";
+import { queueInterviewEvaluation } from "../queue/index.js";
 
 // Handles:
 // - Session authentication via tokens
@@ -27,6 +28,10 @@ interface AuthenticatedSocket extends Socket {
   sessionToken?: string;
 }
 
+const resumeTextCache = new Map<string, string>();
+const resumeNameCache = new Map<string, string>();
+const sessionWeakTopics = new Map<string, string[]>();
+
 export class InterviewSocketServer {
   private io: SocketIOServer;
   private timeoutManager: SessionTimeoutManager;
@@ -35,13 +40,32 @@ export class InterviewSocketServer {
 
   constructor(httpServer: HttpServer) {
     // Initialize Redis clients for Socket.io adapter (clustering support)
-    this.pubClient = new IORedisClient({
-      host: config.redis.host,
-      port: config.redis.port,
-      password: config.redis.password || undefined,
+    const redisOptions = {
+      maxRetriesPerRequest: null,
+      retryStrategy(times: number) {
+        return Math.min(times * 100, 3000);
+      },
+    };
+
+    this.pubClient = config.redis.url
+      ? new IORedisClient(config.redis.url, redisOptions)
+      : new IORedisClient({
+          host: config.redis.host,
+          port: config.redis.port,
+          password: config.redis.password || undefined,
+          tls: config.redis.host.includes("upstash.io") ? {} : undefined,
+          ...redisOptions,
+        });
+
+    this.pubClient.on("error", (err: Error) => {
+      logger.error("[WebSocket] Redis pubClient error:", err);
     });
 
     this.subClient = this.pubClient.duplicate();
+
+    this.subClient.on("error", (err: Error) => {
+      logger.error("[WebSocket] Redis subClient error:", err);
+    });
 
     // Initialize Socket.io with Redis adapter
     this.io = new SocketIOServer(httpServer, {
@@ -273,8 +297,28 @@ export class InterviewSocketServer {
             const session = await prisma.interviewSession.findUnique({
               where: { id: sessionId },
               include: {
+                candidate: {
+                  include: {
+                    user: {
+                      select: {
+                        firstName: true,
+                        lastName: true,
+                      },
+                    },
+                  },
+                },
                 application: {
                   include: {
+                    candidate: {
+                      include: {
+                        user: {
+                          select: {
+                            firstName: true,
+                            lastName: true,
+                          },
+                        },
+                      },
+                    },
                     job: {
                       select: {
                         title: true,
@@ -289,6 +333,7 @@ export class InterviewSocketServer {
                     title: true,
                     description: true,
                     requiredSkills: true,
+                    category: true,
                   },
                 },
                 transcript: {
@@ -306,50 +351,135 @@ export class InterviewSocketServer {
               return;
             }
 
+            const user = session.candidate?.user || session.application?.candidate?.user;
+            const candidateName = user?.firstName
+              ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}`.trim()
+              : "Candidate";
+
             const jobContext = session.application?.job || session.practiceJob;
             const currentQuestion = await this.getCurrentQuestion(
               sessionId,
               data.questionIndex,
             );
 
+            // Check if candidate verbally or in text requested to end the interview
+            const normalizedText = transcribedText.trim().toLowerCase().replace(/[.,!?;:'"]/g, "");
+            const endPhrases = [
+              "end the interview",
+              "stop the interview",
+              "finish the interview",
+              "quit the interview",
+              "terminate the interview",
+              "end interview",
+              "stop interview",
+              "finish interview",
+              "quit interview",
+              "terminate interview",
+              "i want to end",
+              "i want to stop",
+              "can we end",
+              "please end",
+              "wrap up the interview",
+              "close the interview",
+            ];
+            // Only short messages count as an end request. A long answer that happens to
+            // contain e.g. "I want to stop the process..." is a real answer, not a command.
+            const wordCount = normalizedText.split(/\s+/).filter(Boolean).length;
+            const isEndingInterview =
+              wordCount <= 15 &&
+              (endPhrases.some((phrase) => normalizedText.includes(phrase)) ||
+                /^(end|stop|quit|finish|terminate|exit)\s*(the\s*)?interview$/i.test(normalizedText));
+
             // Store answer in transcript with metadata
-            if (session.transcript) {
+            if (isEndingInterview) {
+              // The end request is a command, not an answer: leave the current question
+              // unanswered (it is excluded from scoring) and only note it in the raw log.
+              if (session.transcript) {
+                await prisma.interviewTranscript.update({
+                  where: { id: session.transcript.id },
+                  data: {
+                    rawTranscript: `${session.transcript.rawTranscript || ""}\n\n[Candidate ended the interview before answering Q${data.questionIndex + 1}]`,
+                  },
+                });
+              }
+            } else if (session.transcript) {
               const qaData = (session.transcript.qaData as any[]) || [];
-              qaData.push({
-                questionIndex: data.questionIndex,
-                question: currentQuestion,
-                answer: transcribedText,
-                timestamp: new Date().toISOString(),
-                isVoiceMode: data.isVoiceMode || false,
-                audioDuration: data.audioDuration,
-              });
+              const existingItem = qaData.find(
+                (item: any) => item.questionIndex === data.questionIndex,
+              );
+
+              const resolvedQuestion =
+                (data as any).questionText ||
+                (existingItem && existingItem.question && !existingItem.question.startsWith("Question ")
+                  ? existingItem.question
+                  : currentQuestion);
+
+              if (existingItem) {
+                existingItem.question = resolvedQuestion;
+                existingItem.answer = transcribedText;
+                existingItem.timestamp = new Date().toISOString();
+                existingItem.isVoiceMode = data.isVoiceMode || false;
+                existingItem.audioDuration = data.audioDuration;
+                existingItem.answered = true;
+              } else {
+                qaData.push({
+                  questionIndex: data.questionIndex,
+                  question: resolvedQuestion,
+                  answer: transcribedText,
+                  timestamp: new Date().toISOString(),
+                  isVoiceMode: data.isVoiceMode || false,
+                  audioDuration: data.audioDuration,
+                  answered: true,
+                });
+              }
 
               await prisma.interviewTranscript.update({
                 where: { id: session.transcript.id },
                 data: {
                   qaData,
-                  rawTranscript: `${session.transcript.rawTranscript || ""}\n\nQ${data.questionIndex + 1}: ${currentQuestion}\nA: ${transcribedText}`,
+                  rawTranscript: `${session.transcript.rawTranscript || ""}\n\nQ${data.questionIndex + 1}: ${resolvedQuestion}\nA: ${transcribedText}`,
                 },
               });
             } else {
+              const resolvedQuestion = (data as any).questionText || currentQuestion;
               // Create transcript if doesn't exist
               await prisma.interviewTranscript.create({
                 data: {
                   sessionId,
                   conversationHistory: [],
-                  rawTranscript: `Q${data.questionIndex + 1}: ${currentQuestion}\nA: ${transcribedText}`,
+                  rawTranscript: `Q${data.questionIndex + 1}: ${resolvedQuestion}\nA: ${transcribedText}`,
                   qaData: [
                     {
                       questionIndex: data.questionIndex,
-                      question: currentQuestion,
+                      question: resolvedQuestion,
                       answer: transcribedText,
                       timestamp: new Date().toISOString(),
                       isVoiceMode: data.isVoiceMode || false,
                       audioDuration: data.audioDuration,
+                      answered: true,
                     },
                   ],
                 },
               });
+            }
+
+            if (isEndingInterview) {
+              logger.info("[WebSocket] Candidate requested to end interview verbally/in text", {
+                sessionId,
+                candidateName,
+                text: transcribedText,
+              });
+
+              socket.emit("question", {
+                questionIndex: data.questionIndex + 1,
+                question: `Understood, ${candidateName}. We will wrap up the interview here. Thank you for your time, and your scorecard is being generated now.`,
+                totalQuestions: data.questionIndex + 1,
+              });
+
+              setTimeout(async () => {
+                await this.completeSession(sessionId);
+              }, 1800);
+              return;
             }
 
             // Update session progress
@@ -382,6 +512,21 @@ export class InterviewSocketServer {
           }
         },
       );
+
+      // --- Event: end-interview ---
+      socket.on("end-interview", async () => {
+        try {
+          if (!sessionId) {
+            socket.emit("error", { message: "Session ID not found" });
+            return;
+          }
+          logger.info("[WebSocket] Candidate requested early interview completion", { sessionId });
+          await this.completeSession(sessionId);
+        } catch (error) {
+          logger.error("[WebSocket] end-interview error", error);
+          socket.emit("error", { message: "Failed to end interview" });
+        }
+      });
 
       // --- Event: heartbeat ---
       socket.on("heartbeat", () => {
@@ -430,6 +575,41 @@ export class InterviewSocketServer {
     return `Question ${questionIndex + 1}`;
   }
 
+  // Helper: Assess answer quality for adaptive cross-questioning
+  // Uses fast heuristics (no LLM call) to detect weak/vague answers
+
+  private assessAnswerQuality(answer: string): 'strong' | 'adequate' | 'weak' | 'vague' {
+    const trimmed = answer.trim();
+
+    // Very short or empty responses
+    if (trimmed.length < 20) return 'vague';
+    if (trimmed.length < 80) return 'weak';
+
+    // Detect hedging and uncertainty language
+    const hedgePatterns = [
+      /i(?:'m| am) not (?:really )?sure/i,
+      /i don'?t (?:really )?know/i,
+      /i think maybe/i,
+      /i guess/i,
+      /(?:^|\. )it depends/i,
+      /that'?s a (?:good|great|interesting) question/i,
+      /i(?:'ve| have)n'?t (?:really )?(?:worked|dealt|used|done)/i,
+      /i(?:'m| am) not (?:very )?familiar/i,
+      /i(?:'m| am) not (?:really )?experienced/i,
+      /off the top of my head/i,
+    ];
+
+    const hedgeCount = hedgePatterns.filter(p => p.test(trimmed)).length;
+    if (hedgeCount >= 2) return 'vague';
+    if (hedgeCount === 1 && trimmed.length < 200) return 'weak';
+
+    // Word count analysis
+    const words = trimmed.split(/\s+/).length;
+    if (words < 15) return 'weak';
+
+    return words > 40 ? 'strong' : 'adequate';
+  }
+
   // Helper: Send next question
   // Generates dynamic AI questions based on job requirements and candidate profile
 
@@ -442,6 +622,16 @@ export class InterviewSocketServer {
       const session = await prisma.interviewSession.findUnique({
         where: { id: sessionId },
         include: {
+          candidate: {
+            include: {
+              user: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
           application: {
             include: {
               job: {
@@ -451,6 +641,16 @@ export class InterviewSocketServer {
                   requiredSkills: true,
                 },
               },
+              candidate: {
+                include: {
+                  user: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                    },
+                  },
+                },
+              },
             },
           },
           practiceJob: {
@@ -458,6 +658,7 @@ export class InterviewSocketServer {
               title: true,
               description: true,
               requiredSkills: true,
+              category: true,
             },
           },
           transcript: {
@@ -480,19 +681,225 @@ export class InterviewSocketServer {
         return;
       }
 
-      // Extract previous questions from transcript
+      // Resolve canonical candidate name from authenticated user profile
+      const user = session.candidate?.user || session.application?.candidate?.user;
+      const accountName = user?.firstName
+        ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}`.trim()
+        : "";
+
+      let candidateName = accountName || "Candidate";
+
+      // Extract full resume text from S3 buffer or URL if available
+      let resumeText = "";
+      const targetResumeUrl =
+        session.resumeUrl ||
+        session.candidate?.resumeUrl ||
+        session.application?.candidate?.resumeUrl;
+
+      if (targetResumeUrl) {
+        if (resumeTextCache.has(targetResumeUrl)) {
+          resumeText = resumeTextCache.get(targetResumeUrl)!;
+        } else {
+          try {
+            const { s3Service } = await import("../storage/S3Service.js");
+            const { resumeParser } = await import("../ai/ResumeParser.js");
+            let parsedText = "";
+
+            try {
+              const buffer = await s3Service.getFileBuffer(targetResumeUrl);
+              const parsed = await resumeParser.parseFromBuffer(buffer, targetResumeUrl);
+              parsedText = parsed.text;
+            } catch (s3Err: any) {
+              if (targetResumeUrl.startsWith("http")) {
+                logger.info("[WebSocket] S3 buffer fetch failed, falling back to direct URL fetch for resume", {
+                  url: targetResumeUrl,
+                  s3Error: s3Err?.message,
+                });
+                const parsed = await resumeParser.parseFromUrl(targetResumeUrl);
+                parsedText = parsed.text;
+              } else {
+                throw s3Err;
+              }
+            }
+
+            if (parsedText && parsedText.trim().length > 0) {
+              resumeText = parsedText.trim();
+              resumeTextCache.set(targetResumeUrl, resumeText);
+
+              // Only attempt resume name extraction if the user's account name is missing
+              if (!accountName) {
+                const extractedName = await resumeParser.extractCandidateName(resumeText);
+                if (extractedName) {
+                  candidateName = extractedName;
+                }
+              }
+
+              logger.info("[WebSocket] Resume parsed successfully for interview context", {
+                sessionId,
+                candidateName,
+                characters: resumeText.length,
+              });
+            }
+          } catch (err: any) {
+            logger.warn("[WebSocket] Could not parse resume text:", err?.message || err);
+          }
+        }
+      }
+
+      if (!resumeText) {
+        const candidateProfile = session.candidate || session.application?.candidate;
+        const profileDetails = [
+          candidateProfile?.currentDesignation ? `Current Role: ${candidateProfile.currentDesignation}` : '',
+          candidateProfile?.currentCompany ? `Company: ${candidateProfile.currentCompany}` : '',
+          candidateProfile?.experience ? `Experience: ${candidateProfile.experience} years` : '',
+        ].filter(Boolean).join(', ');
+
+        resumeText = `[Candidate: ${candidateName}${profileDetails ? ` (${profileDetails})` : ''}. Target Role: ${jobContext.title}. Job Required Skills: ${(jobContext.requiredSkills as string[]).join(", ")}. Do NOT fabricate any past company, project, or domain experience.]`;
+      }
+
+      // Extract QA history from transcript
       const qaData = (session.transcript?.qaData as any[]) || [];
+
+      // If question for this index already exists, return it immediately
+      const existingQa = qaData.find((qa: any) => qa.questionIndex === questionIndex && qa.question);
+      if (existingQa && existingQa.question) {
+        logger.info("[WebSocket] Reusing existing question for index", {
+          sessionId,
+          questionIndex,
+        });
+        const payload = {
+          questionIndex,
+          question: existingQa.question,
+          totalQuestions: session.totalQuestions || 10,
+        };
+        this.io.to(`session:${sessionId}`).emit("question", payload);
+        return;
+      }
+
       const previousQuestions = qaData.map((qa: any) => qa.question);
 
-      // Generate AI question using InterviewGraph
-      const question = await aiEngine.generateSingleQuestion({
-        resumeText: session.resumeUrl,
+      const conversationHistory = qaData
+        .filter((qa: any) => qa.question)
+        .map((qa: any, idx: number) => {
+          return `Interviewer (Q${idx + 1}): ${qa.question}\n${candidateName}: ${qa.answer || "[No response provided]"}`;
+        })
+        .join("\n\n");
+
+      const lastQa = qaData.length > 0 ? qaData[qaData.length - 1] : null;
+      const lastAnswer = lastQa?.answer || "";
+
+      // Evaluate every answer via LLM for adaptive cross-questioning.
+      // The evaluator gets the full Q&A plus the job description, resume and prior turns.
+      const requiredSkillsList = jobContext.requiredSkills as string[];
+      // Prefer the topic recorded when the question was generated; the round-robin guess
+      // is only a fallback for sessions created before topics were persisted.
+      const lastAnswerTopic: string | undefined = questionIndex > 0
+        ? lastQa?.topic ||
+          requiredSkillsList[(questionIndex - 1) % Math.max(1, requiredSkillsList.length)] ||
+          undefined
+        : undefined;
+      const lastFollowUpDepth: number = Number(lastQa?.followUpDepth) || 0;
+      const askedTopics: string[] = qaData
+        .filter((qa: any) => qa.topic && !qa.isFollowUp)
+        .map((qa: any) => qa.topic as string);
+
+      let finalQuality: 'strong' | 'adequate' | 'weak' | 'vague' | 'incorrect' | undefined = undefined;
+      let correctnessIssue: string | undefined;
+      let probeFocus: string | undefined;
+      let evaluationRecord: Record<string, any> | undefined;
+
+      if (lastAnswer && questionIndex > 0) {
+        const lastQuestion = lastQa?.question || '';
+        // Earlier turns only; the answer being evaluated is passed separately.
+        const priorHistory = qaData
+          .filter((qa: any) => qa.question && qa.questionIndex < (lastQa?.questionIndex ?? questionIndex - 1))
+          .map((qa: any) => `Interviewer: ${qa.question}\n${candidateName}: ${qa.answer || "[No response provided]"}`)
+          .join("\n\n");
+        try {
+          const evaluation = await aiEngine.evaluateAnswer({
+            question: lastQuestion,
+            answer: lastAnswer,
+            topic: lastAnswerTopic || '',
+            jobTitle: jobContext.title,
+            jobDescription: jobContext.description,
+            requiredSkills: requiredSkillsList,
+            resumeText,
+            conversationHistory: priorHistory,
+          });
+
+          finalQuality = evaluation.quality;
+          if (!evaluation.isCorrect && evaluation.correctnessIssue) {
+            correctnessIssue = evaluation.correctnessIssue;
+          }
+          probeFocus = evaluation.gap || evaluation.correctnessIssue || undefined;
+          evaluationRecord = {
+            quality: evaluation.quality,
+            isCorrect: evaluation.isCorrect,
+            correctnessIssue: evaluation.correctnessIssue,
+            gap: evaluation.gap,
+            reasoning: evaluation.reasoning,
+            source: 'llm',
+          };
+
+          logger.info('[WebSocket] LLM answer evaluation completed', {
+            sessionId,
+            questionIndex,
+            quality: finalQuality,
+            isCorrect: evaluation.isCorrect,
+            reasoning: evaluation.reasoning,
+          });
+        } catch (err) {
+          // Fall back to heuristic if LLM evaluation fails
+          logger.warn('[WebSocket] LLM answer evaluation failed, falling back to heuristic', err);
+          finalQuality = this.assessAnswerQuality(lastAnswer);
+          evaluationRecord = { quality: finalQuality, source: 'heuristic' };
+        }
+      }
+
+      // Track weak/vague/incorrect topics for adaptive revisiting
+      if (finalQuality && (finalQuality === 'weak' || finalQuality === 'vague' || finalQuality === 'incorrect') && lastAnswerTopic) {
+        const existing = sessionWeakTopics.get(sessionId) || [];
+        if (!existing.includes(lastAnswerTopic)) {
+          existing.push(lastAnswerTopic);
+          sessionWeakTopics.set(sessionId, existing);
+        }
+        logger.info('[WebSocket] Answer flagged for cross-questioning', {
+          sessionId,
+          questionIndex,
+          quality: finalQuality,
+          topic: lastAnswerTopic,
+          correctnessIssue,
+        });
+      }
+
+      const weakTopics = sessionWeakTopics.get(sessionId) || [];
+
+      // Generate conversational AI question with adaptive follow-up and cross-questioning
+      const generated = await aiEngine.generateSingleQuestionDetailed({
+        candidateName,
+        resumeText,
         jobDescription: jobContext.description,
         jobTitle: jobContext.title,
-        requiredSkills: jobContext.requiredSkills as string[],
+        requiredSkills: requiredSkillsList,
+        category: (jobContext as any).category,
         questionIndex,
         previousQuestions,
+        conversationHistory,
+        lastAnswer,
+        lastAnswerQuality: finalQuality,
+        lastAnswerTopic,
+        weakTopics,
+        correctnessIssue,
+        probeFocus,
+        askedTopics,
+        consecutiveFollowUps: lastFollowUpDepth,
       });
+      const question = generated.question;
+      const questionMeta = {
+        topic: generated.topic,
+        isFollowUp: generated.isFollowUp,
+        followUpDepth: generated.isFollowUp ? lastFollowUpDepth + 1 : 0,
+      };
 
       // Generate voice audio for the question (TTS)
       let questionAudio: string | undefined;
@@ -516,12 +923,66 @@ export class InterviewSocketServer {
         // Continue without audio - text will still be sent
       }
 
-      socket.emit("question", {
+      // Persist the question into transcript immediately so it is never lost
+      try {
+        const tr = await prisma.interviewTranscript.findFirst({
+          where: { sessionId },
+        });
+        if (tr) {
+          const qaData = (tr.qaData as any[]) || [];
+          const existing = qaData.find((item: any) => item.questionIndex === questionIndex);
+          if (existing) {
+            existing.question = question;
+            Object.assign(existing, questionMeta);
+          } else {
+            qaData.push({
+              questionIndex,
+              question,
+              answer: "",
+              timestamp: new Date().toISOString(),
+              ...questionMeta,
+            });
+          }
+          if (evaluationRecord) {
+            const evaluated = qaData.find((item: any) => item.questionIndex === questionIndex - 1);
+            if (evaluated) {
+              evaluated.evaluation = evaluationRecord;
+            }
+          }
+          await prisma.interviewTranscript.update({
+            where: { id: tr.id },
+            data: { qaData },
+          });
+        } else {
+          await prisma.interviewTranscript.create({
+            data: {
+              sessionId,
+              conversationHistory: [],
+              rawTranscript: `Q${questionIndex + 1}: ${question}\n`,
+              qaData: [
+                {
+                  questionIndex,
+                  question,
+                  answer: "",
+                  timestamp: new Date().toISOString(),
+                  ...questionMeta,
+                },
+              ],
+            },
+          });
+        }
+      } catch (saveError) {
+        logger.warn("[WebSocket] Failed to pre-save question in transcript", saveError);
+      }
+
+      const questionPayload = {
         questionIndex,
         question,
         questionAudio, // Base64 encoded MP3 audio
-        totalQuestions: session.totalQuestions,
-      });
+        totalQuestions: session.totalQuestions || 10,
+      };
+
+      this.io.to(`session:${sessionId}`).emit("question", questionPayload);
 
       logger.info("[WebSocket] AI question sent", {
         sessionId,
@@ -530,7 +991,7 @@ export class InterviewSocketServer {
         hasAudio: !!questionAudio,
       });
     } catch (error) {
-      logger.error("[WebSocket] Failed to generate question", {
+      logger.error("[WebSocket] Failed to generate question, emitting fallback question", {
         sessionId,
         questionIndex,
         error,
@@ -559,12 +1020,38 @@ export class InterviewSocketServer {
         // If audio generation fails, send text only
       }
 
-      socket.emit("question", {
+      try {
+        const tr = await prisma.interviewTranscript.findFirst({
+          where: { sessionId },
+        });
+        if (tr) {
+          const qaData = (tr.qaData as any[]) || [];
+          const existing = qaData.find((item: any) => item.questionIndex === questionIndex);
+          if (existing) {
+            existing.question = fallbackQuestion;
+          } else {
+            qaData.push({
+              questionIndex,
+              question: fallbackQuestion,
+              answer: "",
+              timestamp: new Date().toISOString(),
+            });
+          }
+          await prisma.interviewTranscript.update({
+            where: { id: tr.id },
+            data: { qaData },
+          });
+        }
+      } catch {}
+
+      const fallbackPayload = {
         questionIndex,
         question: fallbackQuestion,
         questionAudio: fallbackAudio,
-        totalQuestions: 10, // Default fallback
-      });
+        totalQuestions: 10,
+      };
+
+      this.io.to(`session:${sessionId}`).emit("question", fallbackPayload);
     }
   }
 
@@ -572,23 +1059,48 @@ export class InterviewSocketServer {
 
   private async completeSession(sessionId: string) {
     try {
-      await prisma.interviewSession.update({
+      const session = await prisma.interviewSession.update({
         where: { id: sessionId },
         data: {
           status: "COMPLETED",
           completedAt: new Date(),
         },
+        include: {
+          application: true,
+        },
       });
+
+      // If linked to an application, transition application status
+      if (session.applicationId) {
+        await prisma.application.update({
+          where: { id: session.applicationId },
+          data: {
+            status: "INTERVIEW_COMPLETED",
+          },
+        });
+      }
 
       // Notify all clients in session room
       this.io.to(`session:${sessionId}`).emit("session-completed", {
         message: "Interview completed successfully",
       });
 
-      // Queue background evaluation job (implemented via InterviewEvaluationJob)
-      // This is automatically triggered when session completes
+      // Stop timeout monitoring and clean up session tracking
+      this.timeoutManager.stopMonitoring(sessionId);
+      sessionWeakTopics.delete(sessionId);
 
-      logger.info("[WebSocket] Session completed", { sessionId });
+      // Queue background evaluation job for scorecard and resume feedback generation
+      const candidateId =
+        session.candidateId || session.application?.candidateId || "";
+      await queueInterviewEvaluation({
+        sessionId,
+        candidateId,
+      });
+
+      logger.info("[WebSocket] Session completed and evaluation job queued", {
+        sessionId,
+        candidateId,
+      });
     } catch (error) {
       logger.error("[WebSocket] Failed to complete session", {
         sessionId,
@@ -614,6 +1126,7 @@ export class InterviewSocketServer {
       });
 
       logger.warn("[WebSocket] Session timeout", { sessionId });
+      sessionWeakTopics.delete(sessionId);
     } catch (error) {
       logger.error("[WebSocket] Failed to handle timeout", {
         sessionId,

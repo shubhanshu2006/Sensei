@@ -5,12 +5,20 @@ import {
   requireRole,
   requireRecruiterProfile,
 } from "../middleware/authorization.middleware.js";
-import { validateBody } from "../middleware/validation.middleware.js";
 import {
   updateRecruiterProfileSchema,
   scheduleInterviewSchema,
 } from "../validations/recruiters.validation.js";
+import {
+  recruiterApplicationQuerySchema,
+  updateApplicationStatusSchema,
+} from "../validations/applications.validation.js";
 import { interviewLimiter } from "../middleware/rateLimiter.middleware.js";
+import { applicationController } from "../controllers/applications.controller.js";
+import {
+  validateBody,
+  validateQuery,
+} from "../middleware/validation.middleware.js";
 
 const router = Router();
 
@@ -66,6 +74,35 @@ router.post(
   interviewLimiter,
   validateBody(scheduleInterviewSchema),
   recruiterController.scheduleInterview,
+);
+
+/**
+ * GET /recruiters/applications
+ * Returns all applications across all jobs owned by the recruiter.
+ */
+router.get(
+  "/applications",
+  validateQuery(recruiterApplicationQuerySchema),
+  applicationController.getAllRecruiterApplications,
+);
+
+/**
+ * GET /recruiters/applications/:id
+ * Returns application detail for recruiter review.
+ */
+router.get(
+  "/applications/:id",
+  applicationController.getApplicationDetail,
+);
+
+/**
+ * PATCH /recruiters/applications/:id/status
+ * Updates application status (SHORTLISTED, REJECTED, INTERVIEW_INVITED).
+ */
+router.patch(
+  "/applications/:id/status",
+  validateBody(updateApplicationStatusSchema),
+  applicationController.updateApplicationStatus,
 );
 
 export default router;
