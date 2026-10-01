@@ -29,6 +29,7 @@
   "type": "module",
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
