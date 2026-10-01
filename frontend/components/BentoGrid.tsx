@@ -84,10 +84,95 @@ const LIVE_ACTIVITIES = [
   },
 ];
 
+const PRACTICE_TRACKS = [
+  {
+    title: 'Technical',
+    desc: 'Frontend, Backend, System Design',
+    icon: Terminal,
+    isOrange: true,
+  },
+  {
+    title: 'Sales & BD',
+    desc: 'Pitching, Discovery, Closing',
+    icon: TrendingUp,
+    isOrange: false,
+  },
+  {
+    title: 'HR & People',
+    desc: 'STAR Behavioral & Strategy',
+    icon: Users,
+    isOrange: false,
+  },
+  {
+    title: 'Communication',
+    desc: 'Executive Presence & PREP',
+    icon: MessageSquare,
+    isOrange: true,
+  },
+];
+
+function AnimatedNumber({
+  value,
+  isVisible,
+  delay = 0,
+  duration = 1000,
+}: {
+  value: number;
+  isVisible: boolean;
+  delay?: number;
+  duration?: number;
+}) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    if (!isVisible) {
+      setDisplayValue(0);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const startTime = performance.now();
+      const startVal = 0;
+
+      const animate = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const current = Math.round(startVal + (value - startVal) * ease);
+
+        setDisplayValue(current);
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          setDisplayValue(value);
+        }
+      };
+
+      requestAnimationFrame(animate);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [isVisible, value, delay, duration]);
+
+  return <span>{displayValue}</span>;
+}
+
 export default function BentoGrid() {
   const [isVisible, setIsVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [activeTrackIndex, setActiveTrackIndex] = useState(0);
+  const [isPausedTracks, setIsPausedTracks] = useState(false);
+  const [hoveredSkill, setHoveredSkill] = useState<number | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isVisible || isPausedTracks) return;
+    const interval = setInterval(() => {
+      setActiveTrackIndex((prev) => (prev + 1) % 4);
+    }, 2800);
+    return () => clearInterval(interval);
+  }, [isVisible, isPausedTracks]);
 
   useEffect(() => {
     setMounted(true);
@@ -142,9 +227,8 @@ export default function BentoGrid() {
 
         {/* PRIMARY FEATURE SHOWCASE: Continuous Activity & Live Feed (Luminous Clean Styling) */}
         <div
-          className={`rounded-3xl p-6 sm:p-8 lg:p-10 bg-gradient-to-br from-white via-orange-50/25 to-pink-50/20 text-slate-900 border border-slate-200/90 shadow-xl shadow-slate-200/50 relative overflow-hidden transition-all duration-700 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
+          className={`rounded-3xl p-6 sm:p-8 lg:p-10 bg-gradient-to-br from-white via-orange-50/25 to-pink-50/20 text-slate-900 border border-slate-200/90 shadow-xl shadow-slate-200/50 relative overflow-hidden transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
         >
           {/* Subtle ambient glows */}
           <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-orange-500/10 via-pink-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
@@ -174,7 +258,7 @@ export default function BentoGrid() {
 
           {/* Two-Column Grid: Chart on Left, Activity Feed on Right */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-            
+
             {/* Left Panel: Analytics & Animated Monthly Bars (Spans 7 cols) */}
             <div className="lg:col-span-7 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm hover:shadow-md p-6 flex flex-col justify-between space-y-5 transition-shadow">
               {/* Header metrics */}
@@ -336,9 +420,8 @@ export default function BentoGrid() {
 
           {/* Card A: Live Voice Interviewer & Waveform */}
           <div
-            className={`rounded-3xl p-6 sm:p-7 bg-white border border-slate-200/80 shadow-lg relative overflow-hidden group hover:shadow-xl hover:border-orange-500/30 transition-all duration-700 flex flex-col justify-between ${
-              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-            }`}
+            className={`rounded-3xl p-6 sm:p-7 bg-white border border-slate-200/80 shadow-lg relative overflow-hidden group hover:shadow-xl hover:border-orange-500/30 transition-all duration-700 flex flex-col justify-between ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`}
             style={{ transitionDelay: '150ms' }}
           >
             <div>
@@ -408,22 +491,28 @@ export default function BentoGrid() {
 
           {/* Card B: Multi-Track Practice Library */}
           <div
-            className={`rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-orange-50/60 via-white to-pink-50/40 border border-orange-100/90 shadow-lg relative overflow-hidden group hover:shadow-xl transition-all duration-700 flex flex-col justify-between ${
-              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-            }`}
+            className={`rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-orange-50/70 via-white to-pink-50/50 border border-orange-100/90 shadow-lg relative overflow-hidden group hover:shadow-2xl hover:border-orange-300/80 transition-all duration-700 flex flex-col justify-between ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`}
             style={{ transitionDelay: '250ms' }}
           >
+            {/* Ambient Background Glows */}
+            <div className="pointer-events-none absolute -top-16 -right-16 w-44 h-44 bg-gradient-to-bl from-orange-400/20 via-pink-400/10 to-transparent rounded-full blur-2xl group-hover:scale-125 transition-transform duration-700" />
+            <div className="pointer-events-none absolute -bottom-16 -left-16 w-40 h-40 bg-gradient-to-tr from-amber-400/15 via-orange-400/10 to-transparent rounded-full blur-2xl" />
+
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-3">
-                <div className="h-9 w-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-md shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
                   <Layers className="h-4 w-4" />
                 </div>
-                <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
-                  Beginner → Expert
+                <span className="relative inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-orange-50/90 text-orange-700 border border-orange-200/90 shadow-2xs overflow-hidden">
+                  <span className="relative z-10 flex items-center gap-1">
+                    Beginner <span className="text-orange-400 font-sans group-hover:translate-x-0.5 transition-transform">→</span> Expert
+                  </span>
+                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/70 to-transparent -translate-x-full animate-shimmer" />
                 </span>
               </div>
 
-              <h3 className="font-serif text-2xl font-bold text-slate-900 mb-1">
+              <h3 className="font-serif text-2xl font-bold text-slate-900 mb-1 group-hover:text-slate-950 transition-colors">
                 Multi-Track Practice Library
               </h3>
               <p className="font-sans text-xs text-slate-600 mb-5 leading-relaxed">
@@ -432,68 +521,119 @@ export default function BentoGrid() {
 
               {/* 4 Role Track Badges Grid */}
               <div className="grid grid-cols-2 gap-2.5 mb-4 font-sans">
-                <div className="p-2.5 rounded-xl bg-white border border-orange-100 shadow-xs space-y-1 hover:border-orange-300 transition-colors">
-                  <div className="flex items-center gap-1.5 text-orange-600">
-                    <Terminal className="h-3.5 w-3.5" />
-                    <span className="text-[11px] font-bold text-slate-900">Technical</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-tight">Frontend, Backend, System Design</p>
-                </div>
+                {PRACTICE_TRACKS.map((track, idx) => {
+                  const IconComponent = track.icon;
+                  const isActive = activeTrackIndex === idx;
+                  const isOrange = track.isOrange;
 
-                <div className="p-2.5 rounded-xl bg-white border border-pink-100 shadow-xs space-y-1 hover:border-pink-300 transition-colors">
-                  <div className="flex items-center gap-1.5 text-pink-600">
-                    <TrendingUp className="h-3.5 w-3.5" />
-                    <span className="text-[11px] font-bold text-slate-900">Sales & BD</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-tight">Pitching, Discovery, Closing</p>
-                </div>
+                  return (
+                    <div
+                      key={track.title}
+                      onMouseEnter={() => {
+                        setActiveTrackIndex(idx);
+                        setIsPausedTracks(true);
+                      }}
+                      onMouseLeave={() => setIsPausedTracks(false)}
+                      className={`p-3 rounded-2xl relative overflow-hidden transition-all duration-300 cursor-pointer ${isActive
+                        ? isOrange
+                          ? 'bg-white shadow-md shadow-orange-500/10 border-orange-300 ring-2 ring-orange-400/25 -translate-y-0.5'
+                          : 'bg-white shadow-md shadow-pink-500/10 border-pink-300 ring-2 ring-pink-400/25 -translate-y-0.5'
+                        : isOrange
+                          ? 'bg-white/80 border border-orange-100/90 shadow-2xs hover:border-orange-300 hover:bg-white'
+                          : 'bg-white/80 border border-pink-100/90 shadow-2xs hover:border-pink-300 hover:bg-white'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className={`h-6 w-6 rounded-lg flex items-center justify-center shrink-0 transition-all duration-300 ${isActive
+                              ? isOrange
+                                ? 'bg-gradient-to-tr from-orange-500 to-amber-500 text-white shadow-xs scale-105'
+                                : 'bg-gradient-to-tr from-pink-500 to-rose-500 text-white shadow-xs scale-105'
+                              : isOrange
+                                ? 'bg-orange-100/80 text-orange-600'
+                                : 'bg-pink-100/80 text-pink-600'
+                              }`}
+                          >
+                            <IconComponent className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-900 truncate">
+                            {track.title}
+                          </span>
+                        </div>
 
-                <div className="p-2.5 rounded-xl bg-white border border-pink-100 shadow-xs space-y-1 hover:border-pink-300 transition-colors">
-                  <div className="flex items-center gap-1.5 text-pink-600">
-                    <Users className="h-3.5 w-3.5" />
-                    <span className="text-[11px] font-bold text-slate-900">HR & People</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-tight">STAR Behavioral & Strategy</p>
-                </div>
+                        {/* Live active beacon dot */}
+                        {isActive && (
+                          <span className="flex h-2 w-2 relative shrink-0">
+                            <span
+                              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isOrange ? 'bg-orange-400' : 'bg-pink-400'
+                                }`}
+                            />
+                            <span
+                              className={`relative inline-flex rounded-full h-2 w-2 ${isOrange ? 'bg-orange-500' : 'bg-pink-500'
+                                }`}
+                            />
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight pl-0.5">
+                        {track.desc}
+                      </p>
 
-                <div className="p-2.5 rounded-xl bg-white border border-orange-100 shadow-xs space-y-1 hover:border-orange-300 transition-colors">
-                  <div className="flex items-center gap-1.5 text-orange-600">
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    <span className="text-[11px] font-bold text-slate-900">Communication</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-tight">Executive Presence & PREP</p>
-                </div>
+                      {/* Active indicator bottom glowing bar */}
+                      {isActive && (
+                        <div className="absolute bottom-0 inset-x-0 h-0.5 bg-slate-100/60 overflow-hidden">
+                          <div
+                            className={`h-full w-full ${isOrange
+                              ? 'bg-gradient-to-r from-orange-400 via-amber-400 to-orange-500'
+                              : 'bg-gradient-to-r from-pink-400 via-rose-400 to-pink-500'
+                              } animate-pulse`}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Bottom Difficulty Tiers Bar */}
               <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-3 border-t border-orange-100/80">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500" />
+                  </span>
                   Adaptive Practice
                 </span>
-                <span className="text-orange-600 font-semibold">4 Role Tracks</span>
+                <span className="inline-flex items-center text-orange-600 font-semibold px-2 py-0.5 rounded-md bg-orange-100/60 border border-orange-200/60">
+                  4 Role Tracks
+                </span>
               </div>
             </div>
           </div>
 
           {/* Card C: Smart Scoring Arc Metric (Earlier Beloved Style) */}
           <div
-            className={`rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-pink-50/50 via-white to-rose-50/40 border border-pink-100/90 shadow-lg relative overflow-hidden group hover:shadow-xl transition-all duration-700 flex flex-col justify-between ${
-              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-            }`}
+            className={`rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-pink-50/60 via-white to-rose-50/50 border border-pink-100/90 shadow-lg relative overflow-hidden group hover:shadow-2xl hover:border-pink-300/80 transition-all duration-700 flex flex-col justify-between ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`}
             style={{ transitionDelay: '350ms' }}
           >
-            <div>
+            {/* Ambient Background Glows */}
+            <div className="pointer-events-none absolute -top-16 -right-16 w-44 h-44 bg-gradient-to-bl from-pink-400/20 via-rose-400/10 to-transparent rounded-full blur-2xl group-hover:scale-125 transition-transform duration-700" />
+            <div className="pointer-events-none absolute -bottom-16 -left-16 w-40 h-40 bg-gradient-to-tr from-orange-400/15 via-pink-400/10 to-transparent rounded-full blur-2xl" />
+
+            <div className="relative z-10">
               <div className="flex items-center justify-between mb-3">
-                <div className="h-9 w-9 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-rose-500 via-pink-500 to-orange-400 text-white flex items-center justify-center shadow-md shadow-pink-500/20 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-300">
                   <Sparkles className="h-4 w-4" />
                 </div>
-                <span className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                <span className="relative inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200/90 shadow-2xs overflow-hidden">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
                   Bar-Raiser Calibrated
                 </span>
               </div>
 
-              <h3 className="font-serif text-2xl font-bold text-slate-900 mb-1">
+              <h3 className="font-serif text-2xl font-bold text-slate-900 mb-1 group-hover:text-slate-950 transition-colors">
                 Dimensional Scorecards
               </h3>
               <p className="font-sans text-xs text-slate-600 mb-5 leading-relaxed">
@@ -501,9 +641,22 @@ export default function BentoGrid() {
               </p>
 
               {/* Large Circular Score Gauge */}
-              <div className="relative w-32 h-32 mx-auto mb-5">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle cx="64" cy="64" r="54" stroke="#fed7aa" strokeWidth="10" fill="none" />
+              <div className="relative w-32 h-32 mx-auto mb-5 group/gauge">
+                {/* Soft ambient breathing halo */}
+                <div className="absolute inset-2 rounded-full bg-gradient-to-tr from-orange-400/20 via-rose-400/20 to-pink-500/20 blur-xl animate-pulse pointer-events-none group-hover/gauge:scale-110 transition-transform duration-500" />
+
+                <svg className="w-full h-full transform -rotate-90 relative z-10">
+                  {/* Background Track */}
+                  <circle
+                    cx="64"
+                    cy="64"
+                    r="54"
+                    stroke="#fed7aa"
+                    strokeOpacity="0.45"
+                    strokeWidth="10"
+                    fill="none"
+                  />
+                  {/* Animated Foreground Circle */}
                   <circle
                     cx="64"
                     cy="64"
@@ -512,9 +665,21 @@ export default function BentoGrid() {
                     strokeWidth="10"
                     fill="none"
                     strokeDasharray={`${2 * Math.PI * 54}`}
-                    strokeDashoffset={`${2 * Math.PI * 54 * (1 - 0.91)}`}
-                    className="transition-all duration-1000"
+                    strokeDashoffset={isVisible ? `${2 * Math.PI * 54 * (1 - 0.91)}` : `${2 * Math.PI * 54}`}
+                    className="transition-all duration-1000 ease-out"
                     strokeLinecap="round"
+                  />
+                  {/* Glowing tip beacon at 91% mark */}
+                  <circle
+                    cx="109.6"
+                    cy="35.1"
+                    r="4"
+                    fill="#ffffff"
+                    className={`transition-all duration-700 ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}
+                    style={{
+                      filter: 'drop-shadow(0 0 5px #ec4899)',
+                      transitionDelay: '900ms',
+                    }}
                   />
                   <defs>
                     <linearGradient id="bentoScoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -524,8 +689,12 @@ export default function BentoGrid() {
                     </linearGradient>
                   </defs>
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center flex-col">
-                  <span className="font-serif text-3xl sm:text-4xl font-bold text-slate-900">91</span>
+
+                {/* Center score with animated counter */}
+                <div className="absolute inset-0 flex items-center justify-center flex-col z-20 pointer-events-none">
+                  <span className="font-serif text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight group-hover/gauge:scale-105 transition-transform duration-300">
+                    <AnimatedNumber value={91} isVisible={isVisible} duration={1200} />
+                  </span>
                   <span className="text-[10px] font-mono uppercase text-slate-500 font-semibold tracking-wider">
                     Overall
                   </span>
@@ -539,19 +708,45 @@ export default function BentoGrid() {
                   { label: 'Communication Clarity', val: 88 },
                   { label: 'Problem Solving Speed', val: 92 },
                 ].map((skill, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="flex justify-between font-medium">
-                      <span className="text-slate-600 text-[11px]">{skill.label}</span>
-                      <span className="text-slate-900 font-bold text-[11px]">{skill.val}%</span>
+                  <div
+                    key={i}
+                    onMouseEnter={() => setHoveredSkill(i)}
+                    onMouseLeave={() => setHoveredSkill(null)}
+                    className={`p-1.5 -mx-1.5 rounded-xl transition-all duration-300 cursor-default ${hoveredSkill === i
+                      ? 'bg-white/90 shadow-sm border border-pink-100/90 -translate-y-0.5'
+                      : 'hover:bg-white/40'
+                      }`}
+                  >
+                    <div className="flex justify-between font-medium mb-1">
+                      <span
+                        className={`text-[11px] transition-colors ${hoveredSkill === i ? 'text-slate-950 font-semibold' : 'text-slate-600'
+                          }`}
+                      >
+                        {skill.label}
+                      </span>
+                      <span className="text-slate-900 font-bold text-[11px] font-mono">
+                        <AnimatedNumber
+                          value={skill.val}
+                          isVisible={isVisible}
+                          delay={i * 150 + 350}
+                          duration={900}
+                        />
+                        %
+                      </span>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="w-full bg-slate-100/90 rounded-full h-1.5 overflow-hidden relative shadow-inner">
                       <div
-                        className="bg-gradient-to-r from-orange-500 to-pink-500 h-1.5 rounded-full transition-all duration-1000"
+                        className="bg-gradient-to-r from-orange-500 via-rose-500 to-pink-500 h-1.5 rounded-full transition-all duration-1000 ease-out relative"
                         style={{
                           width: isVisible ? `${skill.val}%` : '0%',
                           transitionDelay: `${i * 150 + 400}ms`,
                         }}
-                      />
+                      >
+                        {/* Ambient shimmer across progress fill */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/35 to-transparent animate-shimmer" />
+                        {/* Glowing tip */}
+                        <div className="absolute right-0 top-0 bottom-0 w-2 bg-white/70 rounded-full shadow-[0_0_6px_#f43f5e]" />
+                      </div>
                     </div>
                   </div>
                 ))}

@@ -45,9 +45,8 @@ export default function CTA() {
 
       <div className="max-w-5xl mx-auto relative z-10">
         <div
-          className={`relative p-8 sm:p-12 md:p-16 bg-gradient-to-br from-white via-orange-50/30 to-pink-50/20 backdrop-blur-2xl rounded-[32px] border border-slate-200/90 shadow-2xl shadow-slate-200/50 overflow-hidden transition-all duration-1000 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
+          className={`relative p-8 sm:p-12 md:p-16 bg-gradient-to-br from-white via-orange-50/30 to-pink-50/20 backdrop-blur-2xl rounded-[32px] border border-slate-200/90 shadow-2xl shadow-slate-200/50 overflow-hidden transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
         >
           {/* Top highlight border line */}
           <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-orange-500/60 via-pink-500/60 to-transparent" />

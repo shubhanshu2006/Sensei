@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { Quote, Sparkles, CheckCircle2, Star } from 'lucide-react';
 
 const testimonials = [
@@ -10,6 +11,7 @@ const testimonials = [
     author: "Aditya Verma",
     role: "Software Development Engineer II",
     company: "Amazon",
+    image: "/testimonials/aditya.jpg",
     avatar: "AV",
     verified: "SDE-2 Offer Accepted",
     accent: "from-orange-500 to-rose-500",
@@ -20,6 +22,7 @@ const testimonials = [
     author: "Rohan Mehta",
     role: "Senior Frontend Engineer",
     company: "Stripe",
+    image: "/testimonials/rohan.jpg",
     avatar: "RM",
     verified: "Senior FE Offer",
     accent: "from-pink-500 to-rose-500",
@@ -30,6 +33,7 @@ const testimonials = [
     author: "Sneha Kulkarni",
     role: "Software Engineer",
     company: "Google",
+    image: "/testimonials/sneha.jpg",
     avatar: "SK",
     verified: "Campus Placement Winner",
     accent: "from-orange-500 to-pink-500",
@@ -40,6 +44,7 @@ const testimonials = [
     author: "Kavya Patel",
     role: "Infrastructure Engineer",
     company: "Meta",
+    image: "/testimonials/kavya.jpg",
     avatar: "KP",
     verified: "E4 Infrastructure Engineer",
     accent: "from-pink-500 to-rose-500",
@@ -50,6 +55,7 @@ const testimonials = [
     author: "Aman Sharma",
     role: "Enterprise Account Executive",
     company: "Microsoft",
+    image: "/testimonials/aman.jpg",
     avatar: "AS",
     verified: "Enterprise AE Accepted",
     accent: "from-orange-500 to-pink-500",
@@ -60,6 +66,7 @@ const testimonials = [
     author: "Priya Nair",
     role: "Engineering Lead",
     company: "Atlassian",
+    image: "/testimonials/priya.jpg",
     avatar: "PN",
     verified: "Engineering Lead Offer",
     accent: "from-pink-500 to-rose-500",
@@ -157,13 +164,17 @@ export default function Testimonials() {
                 </p>
               </div>
 
-              {/* Author footer */}
+              {/* Author footer with AI-generated Headshot */}
               <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between gap-3 relative z-10">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`h-10 w-10 rounded-xl bg-gradient-to-tr ${item.accent} flex items-center justify-center text-white font-serif font-bold text-sm shrink-0 shadow-md shadow-orange-500/20`}
-                  >
-                    {item.avatar}
+                  <div className="relative h-11 w-11 shrink-0 rounded-full overflow-hidden ring-2 ring-orange-500/20 shadow-md shadow-orange-500/10">
+                    <Image
+                      src={item.image}
+                      alt={item.author}
+                      width={44}
+                      height={44}
+                      className="h-full w-full object-cover"
+                    />
                   </div>
                   <div className="min-w-0">
                     <h4 className="font-serif text-sm font-bold text-slate-950 truncate">

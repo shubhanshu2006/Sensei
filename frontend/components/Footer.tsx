@@ -13,9 +13,177 @@ export default function Footer() {
       {/* Subtle background glow */}
       <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-gradient-to-b from-orange-500/10 via-pink-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
 
+      {/* Scoped Keyframe Animations for Constant Fluid Motion */}
+      <style>{`
+        @keyframes footerWaveDrift1 {
+          0%, 100% {
+            transform: translate(0px, 0px) scale(1);
+          }
+          50% {
+            transform: translate(-16px, -5px) scale(1.015);
+          }
+        }
+        @keyframes footerWaveDrift2 {
+          0%, 100% {
+            transform: translate(0px, 0px);
+          }
+          50% {
+            transform: translate(-22px, -8px);
+          }
+        }
+        @keyframes footerSparkleTwinkle {
+          0%, 100% {
+            transform: scale(0.92) rotate(0deg);
+            opacity: 0.75;
+          }
+          50% {
+            transform: scale(1.16) rotate(10deg);
+            opacity: 1;
+          }
+        }
+        @keyframes footerSparkleHalo {
+          0%, 100% {
+            transform: scale(0.85);
+            opacity: 0.12;
+          }
+          50% {
+            transform: scale(1.35);
+            opacity: 0.30;
+          }
+        }
+        .animate-footer-wave-1 {
+          animation: footerWaveDrift1 10s ease-in-out infinite;
+          transform-origin: bottom right;
+        }
+        .animate-footer-wave-2 {
+          animation: footerWaveDrift2 13s ease-in-out infinite;
+          transform-origin: bottom right;
+        }
+        .animate-footer-sparkle {
+          animation: footerSparkleTwinkle 4.5s ease-in-out infinite;
+        }
+        .animate-footer-sparkle-delayed {
+          animation: footerSparkleTwinkle 4s ease-in-out infinite 1.5s;
+        }
+        .animate-footer-halo {
+          animation: footerSparkleHalo 4.5s ease-in-out infinite;
+        }
+      `}</style>
+
+      {/* Top-Right Decorative Sparkle Stars */}
+      <div className="absolute top-8 right-12 pointer-events-none select-none z-0 hidden sm:block">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="w-12 h-12">
+          {/* Main 4-point star */}
+          <path
+            d="M 18 4 C 18 11.5 24.5 18 32 18 C 24.5 18 18 24.5 18 32 C 18 24.5 11.5 18 4 18 C 11.5 18 18 11.5 18 4 Z"
+            fill="url(#footerTopStarGrad1)"
+            className="animate-footer-sparkle"
+            style={{ transformOrigin: "18px 18px" }}
+          />
+          {/* Smaller companion star */}
+          <path
+            d="M 36 6 C 36 9.5 39 12 42.5 12 C 39 12 36 14.5 36 18 C 36 14.5 33 12 29.5 12 C 33 12 36 9.5 36 6 Z"
+            fill="url(#footerTopStarGrad2)"
+            className="animate-footer-sparkle-delayed"
+            style={{ transformOrigin: "36px 12px" }}
+          />
+          <defs>
+            <linearGradient id="footerTopStarGrad1" x1="4" y1="4" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#fb923c" stopOpacity="0.40" />
+              <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.25" />
+            </linearGradient>
+            <linearGradient id="footerTopStarGrad2" x1="29.5" y1="6" x2="42.5" y2="18" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#f97316" stopOpacity="0.32" />
+              <stop offset="100%" stopColor="#ec4899" stopOpacity="0.20" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      {/* Bottom-Right Undulating Organic Wave (Flush to right edge, extended left, strictly below text) */}
+      <div className="absolute right-0 bottom-0 w-full max-w-[700px] sm:max-w-[850px] lg:max-w-[1050px] xl:max-w-[1250px] h-[130px] sm:h-[155px] md:h-[180px] pointer-events-none select-none z-0 overflow-hidden">
+        <svg
+          viewBox="0 0 1000 180"
+          fill="none"
+          preserveAspectRatio="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-full h-full block"
+        >
+          <defs>
+            {/* Primary Wave Gradient Fill - Soft Ambient Opacity */}
+            <linearGradient id="footerWaveGrad1" x1="1000" y1="15" x2="100" y2="180" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#fb923c" stopOpacity="0.14" />
+              <stop offset="45%" stopColor="#f43f5e" stopOpacity="0.08" />
+              <stop offset="85%" stopColor="#fda4af" stopOpacity="0.02" />
+              <stop offset="100%" stopColor="#fff1f2" stopOpacity="0" />
+            </linearGradient>
+
+            {/* Secondary Inner Wave Gradient Fill */}
+            <linearGradient id="footerWaveGrad2" x1="1000" y1="60" x2="250" y2="180" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#f97316" stopOpacity="0.10" />
+              <stop offset="55%" stopColor="#ec4899" stopOpacity="0.05" />
+              <stop offset="100%" stopColor="#ffedd5" stopOpacity="0" />
+            </linearGradient>
+
+            {/* Outer Contour Gradient Stroke */}
+            <linearGradient id="footerContour1" x1="1000" y1="15" x2="50" y2="180" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#f97316" stopOpacity="0.36" />
+              <stop offset="50%" stopColor="#fb7185" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.04" />
+            </linearGradient>
+
+            {/* Secondary Contour Gradient Stroke */}
+            <linearGradient id="footerContour2" x1="1000" y1="60" x2="200" y2="180" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#fb923c" stopOpacity="0.38" />
+              <stop offset="65%" stopColor="#f43f5e" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#fb7185" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
+          {/* Primary Flowing Wavy Layer with Gentle Harmonic Drift */}
+          <g className="animate-footer-wave-1">
+            <path
+              d="M 1000 15 C 880 45, 800 15, 680 65 C 560 115, 480 80, 360 130 C 240 175, 120 160, 0 178 L 0 180 L 1000 180 Z"
+              fill="url(#footerWaveGrad1)"
+            />
+            <path
+              d="M 1000 15 C 880 45, 800 15, 680 65 C 560 115, 480 80, 360 130 C 240 175, 120 160, 0 178"
+              stroke="url(#footerContour1)"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              fill="none"
+            />
+          </g>
+
+          {/* Secondary Layered Wavy Curve with Phase Offset Drift */}
+          <g className="animate-footer-wave-2">
+            <path
+              d="M 1000 60 C 890 85, 810 55, 710 100 C 590 145, 500 115, 390 152 C 280 180, 160 175, 60 180 L 1000 180 Z"
+              fill="url(#footerWaveGrad2)"
+            />
+            <path
+              d="M 1000 60 C 890 85, 810 55, 710 100 C 590 145, 500 115, 390 152 C 280 180, 160 175, 60 180"
+              stroke="url(#footerContour2)"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              fill="none"
+            />
+            {/* Tertiary Delicate Ripple Line */}
+            <path
+              d="M 1000 105 C 900 125, 820 100, 730 135 C 620 165, 520 145, 420 168 C 320 180, 220 180, 140 180"
+              stroke="url(#footerContour2)"
+              strokeWidth="1"
+              strokeDasharray="4 4"
+              strokeOpacity="0.35"
+              fill="none"
+            />
+          </g>
+        </svg>
+      </div>
+
       <div className="max-w-7xl mx-auto relative z-10 space-y-16">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
-          
+
           {/* Brand & Mission (Spans 4 columns) */}
           <div className="md:col-span-4 space-y-5">
             <Link href="/" className="inline-block group py-1">
@@ -180,8 +348,8 @@ export default function Footer() {
           </div>
         </div>
       </div>
-      
+
     </footer>
-    
+
   );
 }
