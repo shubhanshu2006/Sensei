@@ -125,7 +125,7 @@ export function useAdminPracticeJobs(filters?: any) {
           page: number;
           totalPages: number;
         };
-      }>("/admin/practice-jobs", { params: filters });
+      }>("/admin/practice-jobs", { params: { limit: 100, ...filters } });
       return {
         jobs: data?.practiceJobs || [],
         total: data?.pagination?.total || 0,
@@ -145,7 +145,7 @@ export function useCreatePracticeJob() {
       description: string;
       category: string;
       difficulty: string;
-      requiredSkills: string[];
+      requiredSkills?: string[];
       technologies?: string[];
       estimatedDuration?: number;
       isFeatured?: boolean;
@@ -229,6 +229,30 @@ export function useTogglePracticeJobFeatured() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to toggle featured status");
+    },
+  });
+}
+
+export function useTogglePracticeJobPublished() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await apiClient.patch<any>(`/practice/admin/${id}/publish`);
+      return data;
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.practiceJobs() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.stats() });
+      const isPublished = data?.data?.isPublished ?? data?.isPublished;
+      toast.success(
+        isPublished
+          ? "Practice track published to candidate dashboard"
+          : "Practice track hidden from candidate dashboard"
+      );
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to update track visibility");
     },
   });
 }

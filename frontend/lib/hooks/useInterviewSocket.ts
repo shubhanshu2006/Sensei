@@ -9,6 +9,10 @@ export interface QuestionData {
   question: string;
   questionAudio?: string; // Base64 MP3 audio from OpenAI TTS
   totalQuestions: number;
+  isReask?: boolean;
+  isWarning?: boolean;
+  warningType?: 'off_topic' | 'abusive';
+  originalQuestion?: string;
 }
 
 export interface UseInterviewSocketOptions {
@@ -18,6 +22,7 @@ export interface UseInterviewSocketOptions {
   onTranscription?: (data: { questionIndex: number; transcription: string }) => void;
   onCompleted?: () => void;
   onTimeout?: () => void;
+  onWarning?: (data: { type: 'off_topic' | 'abusive'; message: string; question?: string; fullResponse?: string; warningAudio?: string }) => void;
   onError?: (err: { message: string; code?: string }) => void;
 }
 
@@ -28,6 +33,7 @@ export function useInterviewSocket({
   onTranscription,
   onCompleted,
   onTimeout,
+  onWarning,
   onError,
 }: UseInterviewSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
@@ -85,6 +91,7 @@ export function useInterviewSocket({
   const onTranscriptionRef = useRef(onTranscription);
   const onCompletedRef = useRef(onCompleted);
   const onTimeoutRef = useRef(onTimeout);
+  const onWarningRef = useRef(onWarning);
   const onErrorRef = useRef(onError);
 
   useEffect(() => {
@@ -92,6 +99,7 @@ export function useInterviewSocket({
     onTranscriptionRef.current = onTranscription;
     onCompletedRef.current = onCompleted;
     onTimeoutRef.current = onTimeout;
+    onWarningRef.current = onWarning;
     onErrorRef.current = onError;
   });
 
@@ -160,6 +168,22 @@ export function useInterviewSocket({
       console.warn("[Socket.io] Session timeout", data);
       toast.error(data?.message || "Session timed out due to inactivity");
       onTimeoutRef.current?.();
+    });
+
+    socket.on("interview-warning", (data: { type: 'off_topic' | 'abusive'; message: string; warningAudio?: string }) => {
+      console.warn("[Socket.io] Interview warning received", data.type);
+      if (data.type === 'abusive') {
+        toast.error("⚠️ Warning: Inappropriate language detected. Please maintain professional conduct.", {
+          duration: 6000,
+          icon: '🚫',
+        });
+      } else {
+        toast("Let's stay focused on the interview.", {
+          duration: 4000,
+          icon: '📋',
+        });
+      }
+      onWarningRef.current?.(data);
     });
 
     socket.on("error", (error: any) => {

@@ -31,7 +31,7 @@ export function usePracticeJobs(filters?: {
   return useQuery({
     queryKey: practiceKeys.list(filters),
     queryFn: async () => {
-      const { data } = await apiClient.get<any>("/practice", { params: filters });
+      const { data } = await apiClient.get<any>("/practice", { params: { limit: 100, ...filters } });
       // Backend returns { data: PracticeJob[], pagination: { total, page, totalPages, ... } }
       const jobs = data?.data || data?.jobs || (Array.isArray(data) ? data : []);
       return {
