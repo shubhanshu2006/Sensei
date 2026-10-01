@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { creditsService } from "../services/credits.service.js";
+import { ApiError } from "../utils/ApiError.js";
+import { creditsService, CANDIDATE_CREDIT_PACKS } from "../services/credits.service.js";
 
 // Controller
 
@@ -62,6 +63,103 @@ class CreditsController {
           200,
           { packages },
           "Credit packages retrieved successfully",
+        ),
+      );
+  });
+
+  /**
+   * GET /credits/candidate/packages
+   * Returns available practice credit packages for candidates.
+   */
+  getCandidatePackages = asyncHandler(async (_req: Request, res: Response) => {
+    const packages = creditsService.getCandidateCreditPackages();
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { packages },
+          "Candidate practice credit packages retrieved successfully",
+        ),
+      );
+  });
+
+  /**
+   * POST /credits/candidate/order
+   * Creates a Razorpay order for purchasing candidate practice credits.
+   * Body: { packageId: string }
+   */
+  createCandidateOrder = asyncHandler(async (req: Request, res: Response) => {
+    const candidateId = req.user!.candidateProfileId!;
+    const { packageId } = req.body;
+    if (!packageId) {
+      throw new ApiError(400, "packageId is required");
+    }
+
+    const order = await creditsService.createCandidateOrder(candidateId, packageId);
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, order, "Candidate payment order created successfully"),
+      );
+  });
+
+  /**
+   * POST /credits/candidate/verify
+   * Verifies Razorpay payment signature and credits the candidate.
+   * Body: { razorpayOrderId, razorpayPaymentId, razorpaySignature, packageId }
+   */
+  verifyCandidatePayment = asyncHandler(async (req: Request, res: Response) => {
+    const candidateId = req.user!.candidateProfileId!;
+    const { razorpayOrderId, razorpayPaymentId, razorpaySignature, packageId } = req.body;
+
+    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature || !packageId) {
+      throw new ApiError(
+        400,
+        "razorpayOrderId, razorpayPaymentId, razorpaySignature, and packageId are required",
+      );
+    }
+
+    const result = await creditsService.verifyCandidatePayment(candidateId, {
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      packageId,
+    });
+
+    res.status(200).json(new ApiResponse(200, result, result.message));
+  });
+
+  /**
+   * POST /credits/candidate/purchase
+   * Allows candidates to purchase additional practice interview credits directly (fallback / instant).
+   * Body: { packageId: string }
+   */
+  purchaseCandidateCredits = asyncHandler(async (req: Request, res: Response) => {
+    const candidateId = req.user!.candidateProfileId!;
+    const { packageId } = req.body;
+
+    const pack = CANDIDATE_CREDIT_PACKS.find((p) => p.id === packageId);
+    if (!pack) {
+      throw new ApiError(400, "Invalid candidate credit package selected");
+    }
+
+    const updatedBalance = await creditsService.addCandidateCredits(
+      candidateId,
+      pack.credits,
+    );
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            ...updatedBalance,
+            package: pack,
+          },
+          `Successfully purchased ${pack.credits} practice credits!`,
         ),
       );
   });

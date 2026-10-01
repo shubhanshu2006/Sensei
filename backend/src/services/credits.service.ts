@@ -1,6 +1,9 @@
 import { prisma } from "../database/client.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
+import Razorpay from "razorpay";
+import crypto from "crypto";
+import { config } from "../config/index.js";
 
 // Credit pack constants
 
@@ -38,6 +41,37 @@ export const RECRUITER_CREDIT_PACKS = [
     label: "100 Interview Credits",
   },
 ] as const;
+
+/**
+ * Candidate practice credit packages.
+ */
+export const CANDIDATE_CREDIT_PACKS = [
+  {
+    id: "cand_5",
+    credits: 5,
+    amountInr: 25,
+    currency: "INR",
+    label: "5 Practice Credits",
+    description: "5 Full AI Practice Interviews (₹5/interview) — ideal for focused preparation",
+  },
+  {
+    id: "cand_10",
+    credits: 10,
+    amountInr: 45,
+    currency: "INR",
+    label: "10 Practice Credits",
+    description: "10 Full AI Practice Interviews with detailed bar-raiser scorecards (₹4.5/interview)",
+  },
+  {
+    id: "cand_25",
+    credits: 25,
+    amountInr: 100,
+    currency: "INR",
+    label: "25 Practice Credits",
+    description: "25 Full AI Practice Interviews across all tracks & difficulty levels (₹4/interview)",
+  },
+] as const;
+
 
 // Interfaces
 
@@ -320,6 +354,161 @@ class CreditsService {
    */
   getCreditPackages() {
     return RECRUITER_CREDIT_PACKS;
+  }
+
+  /**
+   * Returns the static list of available practice credit packs for candidates.
+   */
+  getCandidateCreditPackages() {
+    return CANDIDATE_CREDIT_PACKS;
+  }
+
+  private razorpayInstance: Razorpay | null = null;
+
+  private getRazorpay(): Razorpay {
+    if (!this.razorpayInstance) {
+      this.razorpayInstance = new Razorpay({
+        key_id: config.payment.razorpayKeyId,
+        key_secret: config.payment.razorpayKeySecret,
+      });
+    }
+    return this.razorpayInstance;
+  }
+
+  /**
+   * Creates a Razorpay order for a candidate purchasing practice credits.
+   */
+  async createCandidateOrder(candidateId: string, packageId: string) {
+    const pack = CANDIDATE_CREDIT_PACKS.find((p) => p.id === packageId);
+    if (!pack) {
+      throw new ApiError(400, "Invalid candidate credit package selected");
+    }
+
+    const candidate = await prisma.candidateProfile.findUnique({
+      where: { id: candidateId },
+      include: {
+        user: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
+      },
+    });
+
+    if (!candidate) {
+      throw new ApiError(404, "Candidate profile not found");
+    }
+
+    const amountInPaise = pack.amountInr * 100;
+    const razorpay = this.getRazorpay();
+
+    const razorpayOrder = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency: "INR",
+      receipt: `cand_${Date.now()}_${candidateId.substring(0, 6)}`,
+      notes: {
+        candidateId,
+        packageId: pack.id,
+        credits: pack.credits.toString(),
+        candidateEmail: candidate.user.email,
+      },
+    });
+
+    logger.info("[CreditsService] Candidate Razorpay order created", {
+      candidateId,
+      packageId: pack.id,
+      razorpayOrderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+    });
+
+    return {
+      orderId: razorpayOrder.id,
+      razorpayOrderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: "INR",
+      keyId: config.payment.razorpayKeyId,
+      package: pack,
+      user: {
+        name: `${candidate.user.firstName || ""} ${candidate.user.lastName || ""}`.trim(),
+        email: candidate.user.email,
+      },
+    };
+  }
+
+  /**
+   * Verifies Razorpay payment signature and credits practice credits to candidate profile.
+   */
+  async verifyCandidatePayment(
+    candidateId: string,
+    data: {
+      razorpayOrderId: string;
+      razorpayPaymentId: string;
+      razorpaySignature: string;
+      packageId: string;
+    },
+  ) {
+    const pack = CANDIDATE_CREDIT_PACKS.find((p) => p.id === data.packageId);
+    if (!pack) {
+      throw new ApiError(400, "Invalid candidate credit package selected");
+    }
+
+    // Cryptographic verification of Razorpay signature
+    const text = `${data.razorpayOrderId}|${data.razorpayPaymentId}`;
+    const expectedSignature = crypto
+      .createHmac("sha256", config.payment.razorpayKeySecret)
+      .update(text)
+      .digest("hex");
+
+    const isValid = expectedSignature === data.razorpaySignature;
+    if (!isValid) {
+      logger.error("[CreditsService] Invalid Razorpay signature for candidate payment", {
+        candidateId,
+        orderId: data.razorpayOrderId,
+        paymentId: data.razorpayPaymentId,
+      });
+      throw new ApiError(400, "Payment signature verification failed");
+    }
+
+    const updated = await this.addCandidateCredits(candidateId, pack.credits);
+
+    logger.info("[CreditsService] Candidate payment verified and credits added", {
+      candidateId,
+      packageId: pack.id,
+      creditsAdded: pack.credits,
+      totalCredits: updated.practiceCredits,
+    });
+
+    return {
+      ...updated,
+      package: pack,
+      message: `Successfully purchased ${pack.credits} practice credits!`,
+    };
+  }
+
+  /**
+   * Adds purchased practice credits to a candidate's profile.
+   */
+  async addCandidateCredits(candidateId: string, creditsToAdd: number) {
+    const updated = await prisma.candidateProfile.update({
+      where: { id: candidateId },
+      data: {
+        practiceCredits: { increment: creditsToAdd },
+      },
+      select: {
+        practiceCredits: true,
+        practiceCreditsUsed: true,
+      },
+    });
+
+    logger.info("[CreditsService] Practice credits added", {
+      candidateId,
+      creditsAdded: creditsToAdd,
+      totalCredits: updated.practiceCredits,
+    });
+
+    return {
+      practiceCredits: updated.practiceCredits,
+      practiceCreditsUsed: updated.practiceCreditsUsed,
+      creditsRemaining: updated.practiceCredits - updated.practiceCreditsUsed,
+    };
   }
 
   /**

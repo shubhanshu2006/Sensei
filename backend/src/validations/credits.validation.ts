@@ -50,7 +50,7 @@ export const candidatePurchaseCreditsSchema = z.object({
     .number()
     .int("credits must be an integer")
     .min(1, "credits must be at least 1")
-    .max(10, "credits cannot exceed 10 per purchase"),
+    .max(100, "credits cannot exceed 100 per purchase"),
   amount: z
     .number()
     .int("amount must be an integer")

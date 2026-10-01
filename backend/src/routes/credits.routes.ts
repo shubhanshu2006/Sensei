@@ -49,7 +49,77 @@ router.get(
   creditsController.getCandidateBalance,
 );
 
+/**
+ * GET /credits/candidate/packages
+ * Returns available practice credit packages for candidates.
+ */
+router.get(
+  "/candidate/packages",
+  authenticateUser,
+  creditsController.getCandidatePackages,
+);
+
+/**
+ * POST /credits/candidate/order
+ * Initiates a Razorpay order for candidate practice credits.
+ */
+router.post(
+  "/candidate/order",
+  authenticateUser,
+  requireRole("CANDIDATE"),
+  requireCandidateProfile,
+  creditsController.createCandidateOrder,
+);
+
+/**
+ * POST /credits/candidate/verify
+ * Verifies Razorpay payment signature and credits the candidate.
+ */
+router.post(
+  "/candidate/verify",
+  authenticateUser,
+  requireRole("CANDIDATE"),
+  requireCandidateProfile,
+  creditsController.verifyCandidatePayment,
+);
+
+/**
+ * POST /credits/candidate/purchase
+ * Purchases practice interview credits directly (fallback).
+ */
+router.post(
+  "/candidate/purchase",
+  authenticateUser,
+  requireRole("CANDIDATE"),
+  requireCandidateProfile,
+  creditsController.purchaseCandidateCredits,
+);
+
+import { creditRequestController } from "../controllers/creditRequest.controller.js";
+
 // Public (authenticated) routes
+
+/**
+ * GET /credits/qr-config
+ * Returns UPI QR configuration details for manual UPI payments.
+ */
+router.get("/qr-config", authenticateUser, creditRequestController.getQrConfig);
+
+/**
+ * POST /credits/request
+ * Submits a credit purchase request with UPI UTR transaction reference number.
+ */
+router.post("/request", authenticateUser, creditRequestController.createRequest);
+
+/**
+ * GET /credits/requests/my
+ * Returns the history of credit purchase requests submitted by the authenticated user.
+ */
+router.get(
+  "/requests/my",
+  authenticateUser,
+  creditRequestController.getMyRequests,
+);
 
 /**
  * GET /credits/packages
