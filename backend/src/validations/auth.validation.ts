@@ -20,6 +20,12 @@ export const signupSchema = z
       .optional(),
     firstName: z.string().min(1).max(50).optional(),
     lastName: z.string().min(1).max(50).optional(),
+    // Candidate profile fields (stored once during onboarding)
+    resumeUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")).nullable(),
+    resumeFileName: z.string().max(255).optional().nullable(),
+    currentDesignation: z.string().max(100).optional().or(z.literal("")).nullable(),
+    experience: z.union([z.number().int().min(0).max(50), z.null()]).optional(),
+    deviceFingerprint: z.string().optional().nullable(),
   })
   .refine(
     (data) =>
@@ -32,3 +38,10 @@ export const signupSchema = z
   );
 
 export type SignupInput = z.infer<typeof signupSchema>;
+
+export const checkDeviceSchema = z.object({
+  visitorId: z.string().min(1, "visitorId is required"),
+});
+
+export type CheckDeviceInput = z.infer<typeof checkDeviceSchema>;
+
