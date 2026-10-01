@@ -27,14 +27,20 @@ export default async function Home() {
     <>
       <Navbar />
       <main className="overflow-x-hidden">
-        <Hero />
-        <div id="platform">
+        <div id="home" className="scroll-mt-24">
+          <div id="overview">
+            <Hero />
+          </div>
+        </div>
+        <div id="platform" className="scroll-mt-24">
           <BentoGrid />
         </div>
-        <div id="testimonials">
-          <Testimonials />
+        <div id="testimonials" className="scroll-mt-24">
+          <div id="stories">
+            <Testimonials />
+          </div>
         </div>
-        <div id="pricing">
+        <div id="pricing" className="scroll-mt-24">
           <Pricing />
         </div>
         <CTA />
