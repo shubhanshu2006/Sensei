@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import SibApiV3Sdk from "sib-api-v3-sdk";
 import { config } from "../../config/index.js";
 import { logger } from "../../utils/logger.js";
 import { ApiError } from "../../utils/ApiError.js";
@@ -14,57 +14,122 @@ import {
   paymentConfirmationTemplate,
   type PaymentConfirmationData,
 } from "./templates/payment-confirmation.js";
+import {
+  welcomeEmailTemplate,
+  type WelcomeEmailData,
+} from "./templates/welcome-email.js";
 
 export interface EmailOptions {
   to: string;
+  toName?: string;
   subject: string;
   htmlBody: string;
   textBody?: string;
 }
 
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private apiInstance: any = null;
   private fromAddress: string;
+  private fromName: string;
 
   constructor() {
-    // Configure Brevo SMTP
-    this.transporter = nodemailer.createTransport({
-      host: "smtp-relay.brevo.com",
-      port: 587,
-      secure: false, // Use TLS
-      auth: {
-        user: config.brevo.apiUser,
-        pass: config.brevo.apiKey,
-      },
-    });
+    this.fromAddress = config.brevo.fromEmail || "no-reply@sensei.dev";
+    this.fromName = config.brevo.fromName || "Sensei";
 
-    this.fromAddress = config.brevo.fromEmail || "noreply@sensei.ai";
+    if (config.brevo.apiKey) {
+      try {
+        const SibApi = (SibApiV3Sdk as any)?.default || SibApiV3Sdk;
+        const defaultClient = SibApi.ApiClient.instance;
 
-    logger.info("[EmailService] Initialized with Brevo SMTP");
+        // Configure API key authorization: api-key
+        const apiKey = defaultClient.authentications["api-key"];
+        apiKey.apiKey = config.brevo.apiKey;
+
+        this.apiInstance = new SibApi.TransactionalEmailsApi();
+        logger.info("[EmailService] Initialized with Brevo SibApiV3Sdk");
+      } catch (clientErr) {
+        logger.error("[EmailService] Failed to initialize SibApiV3Sdk", { error: clientErr });
+      }
+    } else {
+      logger.warn("[EmailService] Brevo API key not provided in configuration");
+    }
   }
 
   async sendEmail(options: EmailOptions): Promise<void> {
+    if (!this.apiInstance) {
+      logger.error("[EmailService] Brevo API client is not configured");
+      throw new ApiError(500, "Brevo email service is not configured");
+    }
+
     try {
-      const info = await this.transporter.sendMail({
-        from: `"Sensei AI" <${this.fromAddress}>`,
+      const SibApi = (SibApiV3Sdk as any)?.default || SibApiV3Sdk;
+      const sendSmtpEmail = new SibApi.SendSmtpEmail();
+
+      sendSmtpEmail.subject = options.subject;
+      sendSmtpEmail.htmlContent = options.htmlBody;
+      sendSmtpEmail.textContent = options.textBody || this.stripHtml(options.htmlBody);
+      sendSmtpEmail.sender = {
+        name: this.fromName,
+        email: this.fromAddress,
+      };
+      sendSmtpEmail.to = [
+        {
+          email: options.to,
+          name: options.toName || options.to,
+        },
+      ];
+
+      logger.info("[EmailService] Sending email via Brevo SibApiV3Sdk", {
         to: options.to,
+        from: this.fromAddress,
         subject: options.subject,
-        text: options.textBody || this.stripHtml(options.htmlBody),
-        html: options.htmlBody,
       });
 
-      logger.info("[EmailService] Email sent", {
+      const data = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+
+      logger.info("[EmailService] Email sent successfully via Brevo SibApiV3Sdk", {
         to: options.to,
         subject: options.subject,
-        messageId: info.messageId,
+        messageId: data?.messageId,
       });
-    } catch (error) {
-      logger.error("[EmailService] Failed to send email", {
-        error,
+    } catch (error: any) {
+      const errorDetail =
+        error?.response?.body?.message ||
+        error?.response?.body?.code ||
+        error?.response?.text ||
+        error?.message ||
+        "Unknown error";
+
+      logger.error("[EmailService] Brevo SibApiV3Sdk sending failed", {
         to: options.to,
+        from: this.fromAddress,
+        subject: options.subject,
+        statusCode: error?.response?.statusCode || error?.status,
+        errorDetail,
       });
-      throw new ApiError(500, "Failed to send email");
+
+      throw new ApiError(500, `Failed to send email via Brevo: ${errorDetail}`);
     }
+  }
+
+  async sendWelcomeEmail(input: {
+    userEmail: string;
+    userName?: string;
+    dashboardLink?: string;
+  }): Promise<void> {
+    const { subject, htmlBody, textBody } = welcomeEmailTemplate({
+      userEmail: input.userEmail,
+      userName: input.userName,
+      dashboardLink: input.dashboardLink,
+    });
+
+    await this.sendEmail({
+      to: input.userEmail,
+      toName: input.userName,
+      subject,
+      htmlBody,
+      textBody,
+    });
   }
 
   async sendInterviewInvitation(input: {
