@@ -34,6 +34,7 @@ model User {
   recruiterProfile RecruiterProfile?
   candidateProfile CandidateProfile?
   adminProfile     AdminProfile?
+  creditPurchaseRequests CreditPurchaseRequest[]
   
   @@index([clerkId])
   @@index([email])
@@ -189,6 +190,10 @@ enum PracticeJobDifficulty {
 }
 
 enum PracticeJobCategory {
+  TECH
+  SALES
+  HR
+  COMMUNICATION
   FRONTEND
   BACKEND
   FULLSTACK
@@ -505,4 +510,34 @@ model Subscription {
   @@index([recruiterId])
   @@index([status])
   @@index([endDate])
+}
+
+enum CreditRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model CreditPurchaseRequest {
+  id               String              @id @default(uuid())
+  userId           String
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userRole         UserRole
+  packageId        String
+  packageName      String
+  credits          Int
+  amount           Decimal             @db.Decimal(10, 2)
+  currency         String              @default("INR")
+  utrNumber        String
+  status           CreditRequestStatus @default(PENDING)
+  adminNote        String?             @db.Text
+  approvedBy       String?
+  approvedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([utrNumber])
+  @@index([createdAt])
 }
