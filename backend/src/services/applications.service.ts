@@ -324,6 +324,73 @@ export class ApplicationService {
   }
 
   /**
+   * Returns a paginated list of all applications across all jobs owned by the recruiter.
+   * Supports optional status filtering and sorting.
+   */
+  async getAllRecruiterApplications(
+    recruiterId: string,
+    query: RecruiterApplicationQuery,
+  ) {
+    const { page, limit, status, sortBy, sortOrder } = query;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      job: { recruiterId },
+      ...(status ? { status } : {}),
+    };
+
+    const orderBy =
+      sortBy === "score"
+        ? {
+            screeningReport: { overallMatchScore: sortOrder as "asc" | "desc" },
+          }
+        : { appliedAt: sortOrder as "asc" | "desc" };
+
+    const [data, total] = await Promise.all([
+      prisma.application.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        include: {
+          job: {
+            select: {
+              id: true,
+              title: true,
+              location: true,
+              jobType: true,
+            },
+          },
+          candidate: {
+            select: {
+              id: true,
+              experience: true,
+              currentCompany: true,
+              currentDesignation: true,
+              location: true,
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
+          screeningReport: {
+            select: { overallMatchScore: true, decision: true, aiRecommendation: true },
+          },
+        },
+      }),
+      prisma.application.count({ where }),
+    ]);
+
+    return { data, pagination: buildPagination(total, page, limit) };
+  }
+
+  /**
    * Returns full application detail for recruiter review.
    * Includes candidate profile (excluding private resume feedback)
    * and the complete screening report.

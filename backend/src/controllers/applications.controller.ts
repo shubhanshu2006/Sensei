@@ -72,12 +72,12 @@ export class ApplicationController {
    * GET /applications/:id
    * Returns a single application (candidate view, ownership-verified).
    */
-  withdrawApplication = asyncHandler(
+  getApplicationById = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
       const candidateId = req.user?.candidateProfileId;
       if (!candidateId) throw new ApiError(403, "Candidate profile not found");
 
-      const application = await applicationService.withdrawApplication(
+      const application = await applicationService.getCandidateApplicationById(
         req.params.id as string,
         candidateId,
       );
@@ -94,12 +94,12 @@ export class ApplicationController {
    * DELETE /applications/:id
    * Withdraws an application (cannot withdraw once interview is active).
    */
-  getApplicationById = asyncHandler(
+  withdrawApplication = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
       const candidateId = req.user?.candidateProfileId;
       if (!candidateId) throw new ApiError(403, "Candidate profile not found");
 
-      const application = await applicationService.getCandidateApplicationById(
+      const application = await applicationService.withdrawApplication(
         req.params.id as string,
         candidateId,
       );
@@ -117,10 +117,34 @@ export class ApplicationController {
   );
 
   // Recruiter methods
-  // These handlers are mounted in the jobs router at:
-  //   GET  /jobs/:jobId/applications
-  //   GET  /jobs/:jobId/applications/:applicationId
-  //   PATCH /jobs/:jobId/applications/:applicationId/status
+
+  /**
+   * GET /recruiters/applications
+   * Returns paginated applications across all jobs for the authenticated recruiter.
+   * Query is pre-validated by validateQuery(recruiterApplicationQuerySchema).
+   */
+  getAllRecruiterApplications = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const recruiterId = req.user?.recruiterProfileId;
+      if (!recruiterId) throw new ApiError(403, "Recruiter profile not found");
+
+      const query = req.query as unknown as RecruiterApplicationQuery;
+      const result = await applicationService.getAllRecruiterApplications(
+        recruiterId,
+        query,
+      );
+
+      res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            result,
+            "Recruiter applications fetched successfully",
+          ),
+        );
+    },
+  );
 
   /**
    * GET /jobs/:jobId/applications
