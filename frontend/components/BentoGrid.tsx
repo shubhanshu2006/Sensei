@@ -1,6 +1,88 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import {
+  Mic,
+  Sparkles,
+  ShieldCheck,
+  CheckCircle2,
+  Flame,
+  Zap,
+  TrendingUp,
+  Layers,
+  ArrowUpRight,
+  Terminal,
+  Users,
+  MessageSquare,
+} from 'lucide-react';
+
+const LIVE_ACTIVITIES = [
+  {
+    track: 'System Design',
+    title: 'Distributed Rate Limiter (Token Bucket)',
+    time: 'Just now',
+    badge: 'Score: 92/100',
+    badgeStyle: 'bg-orange-50 text-orange-700 border-orange-200/80 font-semibold',
+    color: 'bg-orange-500',
+  },
+  {
+    track: 'Enterprise Sales',
+    title: 'MEDDPICC Discovery & Executive Pitch',
+    time: '3m ago',
+    badge: 'Feedback Ready',
+    badgeStyle: 'bg-pink-50 text-pink-700 border-pink-200/80 font-semibold',
+    color: 'bg-pink-500',
+  },
+  {
+    track: 'Voice AI Engine',
+    title: 'Groq Whisper Audio Stream (115ms)',
+    time: '7m ago',
+    badge: 'Transcribed',
+    badgeStyle: 'bg-orange-50 text-orange-700 border-orange-200/80 font-semibold',
+    color: 'bg-orange-500',
+  },
+  {
+    track: 'HR & People',
+    title: 'STAR Behavioral: Resolving Cross-Team Conflict',
+    time: '12m ago',
+    badge: 'Score: 89/100',
+    badgeStyle: 'bg-pink-50 text-pink-700 border-pink-200/80 font-semibold',
+    color: 'bg-pink-500',
+  },
+  {
+    track: 'Technical Depth',
+    title: 'Concurrency, Mutexes & Go Routines',
+    time: '19m ago',
+    badge: 'Bar-Raiser Pass',
+    badgeStyle: 'bg-orange-50 text-orange-700 border-orange-200/80 font-semibold',
+    color: 'bg-orange-500',
+  },
+  {
+    track: 'Executive Presence',
+    title: 'PREP Framework: Crisp Architecture Pitch',
+    time: '26m ago',
+    badge: 'Evaluated',
+    badgeStyle: 'bg-pink-50 text-pink-700 border-pink-200/80 font-semibold',
+    color: 'bg-pink-500',
+  },
+  {
+    track: 'Dimensional Scorecard',
+    title: 'Dimensional Report: Senior Architect Track',
+    time: '38m ago',
+    badge: 'Generated',
+    badgeStyle: 'bg-orange-50 text-orange-700 border-orange-200/80 font-semibold',
+    color: 'bg-orange-500',
+  },
+  {
+    track: 'Sales & BD',
+    title: 'Objection Handling: Competitor Displacement',
+    time: '45m ago',
+    badge: 'Score: 86/100',
+    badgeStyle: 'bg-pink-50 text-pink-700 border-pink-200/80 font-semibold',
+    color: 'bg-pink-500',
+  },
+];
 
 export default function BentoGrid() {
   const [isVisible, setIsVisible] = useState(false);
@@ -28,483 +110,455 @@ export default function BentoGrid() {
   }, []);
 
   return (
-    <section ref={sectionRef} className="py-32 px-6 sm:px-8 lg:px-12 bg-slate-50">
-      <div className="max-w-7xl mx-auto">
-        {/* Section header */}
-        <div className="text-center mb-20">
-          <div className="inline-block px-4 py-2 bg-white rounded-full mb-6 shadow-sm">
-            <span className="text-sm font-sans text-slate-700 uppercase tracking-wider">Platform Showcase</span>
+    <section
+      ref={sectionRef}
+      className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-50 via-white to-slate-50 relative overflow-hidden"
+    >
+      {/* Background ambient glow in Orange & Pink */}
+      <div className="absolute top-1/4 -left-36 w-80 h-80 bg-gradient-to-br from-orange-500/10 via-pink-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 -right-36 w-80 h-80 bg-gradient-to-br from-pink-500/10 via-rose-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10 space-y-12">
+        {/* Section Header with balanced, smaller font sizing */}
+        <div className="text-center space-y-3 max-w-3xl mx-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-orange-500/10 via-pink-500/10 to-rose-500/10 border border-orange-500/20 shadow-xs">
+            <Flame className="h-3.5 w-3.5 text-orange-500" />
+            <span className="text-xs font-sans font-semibold uppercase tracking-wider bg-gradient-to-r from-orange-600 to-pink-600 bg-clip-text text-transparent">
+              Platform Showcase
+            </span>
           </div>
-          <h2 className="font-serif text-5xl sm:text-6xl lg:text-7xl text-slate-900 mb-6">
-            See Sensei in action
+
+          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl text-slate-900 tracking-tight font-bold">
+            See Sensei in{' '}
+            <span className="bg-gradient-to-r from-orange-500 via-rose-500 to-pink-600 bg-clip-text text-transparent">
+              live action
+            </span>
           </h2>
-          <p className="font-sans text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Every feature designed to make hiring and interview preparation seamless and intelligent.
+
+          <p className="font-sans text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl mx-auto">
+            Experience real-time voice interviews, continuous practice telemetry, and adaptive feedback calibrated for top-tier tech rounds.
           </p>
         </div>
 
-        {/* Bento Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-auto">
-          {/* Card 1: AI Screening Visualization */}
-          <div className={`bg-gradient-to-br from-violet-100 to-purple-50 rounded-3xl p-8 lg:col-span-1 hover-lift transition-all duration-700 overflow-hidden relative ${
+        {/* PRIMARY FEATURE SHOWCASE: Continuous Activity & Live Feed (Luminous Clean Styling) */}
+        <div
+          className={`rounded-3xl p-6 sm:p-8 lg:p-10 bg-gradient-to-br from-white via-orange-50/25 to-pink-50/20 text-slate-900 border border-slate-200/90 shadow-xl shadow-slate-200/50 relative overflow-hidden transition-all duration-700 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}>
-            {/* Floating particles background */}
-            <div className="absolute inset-0 overflow-hidden">
-              {mounted && [...Array(8)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute w-2 h-2 bg-violet-400/30 rounded-full"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
-                    animation: `float ${4 + Math.random() * 4}s ease-in-out ${i * 0.5}s infinite`,
-                  }}
-                ></div>
-              ))}
-            </div>
+          }`}
+        >
+          {/* Subtle ambient glows */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-orange-500/10 via-pink-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-pink-500/10 via-rose-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-            <div className="mb-8 relative">
-              {/* Animated candidate silhouette made of dots */}
-              <div className="relative w-32 h-40 mx-auto">
-                {/* Scanning line effect */}
-                <div 
-                  className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-violet-500 to-transparent animate-pulse z-10"
-                  style={{
-                    top: '0%',
-                    animation: 'scan 3s ease-in-out infinite',
-                  }}
-                ></div>
-                
-                {/* Head */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-16">
-                  {[...Array(8)].map((_, row) => (
-                    <div key={row} className="flex justify-center gap-1 mb-1">
-                      {[...Array(8)].map((_, col) => {
-                        const distance = Math.sqrt(Math.pow(row - 4, 2) + Math.pow(col - 4, 2));
-                        if (distance < 4) {
-                          return (
-                            <div
-                              key={col}
-                              className="w-1.5 h-1.5 bg-violet-500 rounded-sm hover-scale"
-                              style={{
-                                animation: `pulse 2s cubic-bezier(0.4, 0, 0.6, 1) ${(row + col) * 0.1}s infinite`,
-                              }}
-                            />
-                          );
-                        }
-                        return <div key={col} className="w-1.5 h-1.5" />;
-                      })}
-                    </div>
-                  ))}
+          {/* Header row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-slate-200/80">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-600">
+                  <ShieldCheck className="h-4 w-4" />
                 </div>
-                {/* Body */}
-                <div className="absolute top-16 left-1/2 -translate-x-1/2 w-20 h-24">
-                  {[...Array(12)].map((_, row) => (
-                    <div key={row} className="flex justify-center gap-1 mb-1">
-                      {[...Array(10)].map((_, col) => {
-                        const shouldShow = (row < 8 && col > 2 && col < 7) || (row >= 8 && (col < 4 || col > 5));
-                        if (shouldShow) {
-                          return (
-                            <div
-                              key={col}
-                              className="w-1.5 h-1.5 bg-violet-500 rounded-sm hover-scale"
-                              style={{
-                                animation: `pulse 2s cubic-bezier(0.4, 0, 0.6, 1) ${(row + col) * 0.1}s infinite`,
-                              }}
-                            />
-                          );
-                        }
-                        return <div key={col} className="w-1.5 h-1.5" />;
-                      })}
-                    </div>
-                  ))}
-                </div>
+                <h3 className="font-serif text-2xl sm:text-3xl text-slate-950 font-bold tracking-tight">
+                  Continuous Evaluation Activity
+                </h3>
               </div>
-            </div>
-            <h3 className="font-serif text-3xl text-violet-900 mb-3 relative">
-              AI Screening
-            </h3>
-            <p className="font-sans text-slate-700 leading-relaxed relative">
-              Intelligent candidate analysis with resume, GitHub, and portfolio insights in seconds.
-            </p>
-          </div>
-
-          <style jsx>{`
-            @keyframes scan {
-              0%, 100% { top: 0%; }
-              50% { top: 100%; }
-            }
-          `}</style>
-
-          {/* Card 2: Timer/Interview Session */}
-          <div className={`bg-gradient-to-br from-cyan-50 to-blue-50 rounded-3xl p-8 lg:col-span-2 hover-lift transition-all duration-700 overflow-hidden relative ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '100ms' }}>
-            {/* Animated wave background */}
-            <div className="absolute inset-0 opacity-20">
-              <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 1200 120" preserveAspectRatio="none">
-                <path d="M0,50 C300,100 900,0 1200,50 L1200,120 L0,120 Z" fill="url(#waveGradient)" className="animate-float">
-                  <animate attributeName="d" dur="5s" repeatCount="indefinite"
-                    values="M0,50 C300,100 900,0 1200,50 L1200,120 L0,120 Z;
-                            M0,80 C300,20 900,100 1200,80 L1200,120 L0,120 Z;
-                            M0,50 C300,100 900,0 1200,50 L1200,120 L0,120 Z" />
-                </path>
-                <defs>
-                  <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#06b6d4" />
-                    <stop offset="100%" stopColor="#3b82f6" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-
-            <div className="relative">
-              <h3 className="font-serif text-3xl text-cyan-900 mb-2">
-                Live Interview Sessions
-              </h3>
-              <p className="font-sans text-slate-700 mb-8">
-                Adaptive AI interviews that feel natural and conversational.
+              <p className="font-sans text-xs sm:text-sm text-slate-600">
+                Every technical response, architecture diagram, and interview session evaluated over time.
               </p>
-              
-              {/* Animated Timer Display */}
-              <div className="flex gap-4 justify-center items-center mb-6">
-                {/* Minutes */}
-                <div className="bg-white rounded-2xl p-6 shadow-lg min-w-[100px] hover-scale group relative overflow-hidden">
-                  {/* Shimmer effect on hover */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-shimmer"></div>
-                  <div className="text-xs text-slate-500 mb-2 text-center uppercase tracking-wider relative">Minutes</div>
-                  <div className="text-5xl font-serif text-slate-900 text-center relative">15</div>
-                </div>
-                
-                <div className="text-3xl text-slate-400 font-bold animate-pulse">:</div>
-                
-                {/* Seconds */}
-                <div className="bg-white rounded-2xl p-6 shadow-lg min-w-[100px] hover-scale group relative overflow-hidden">
-                  {/* Shimmer effect on hover */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-shimmer"></div>
-                  <div className="text-xs text-slate-500 mb-2 text-center uppercase tracking-wider relative">Seconds</div>
-                  <div className="text-5xl font-serif text-slate-900 text-center relative">
-                    <span className="inline-block animate-pulse">32</span>
-                  </div>
-                </div>
-              </div>
+            </div>
 
-              <div className="flex gap-3 justify-center">
-                <button className="px-6 py-2.5 bg-cyan-600 text-white rounded-full font-sans font-medium hover:bg-cyan-700 transition-all hover-lift shadow-lg">
-                  Active
-                </button>
-                <div className="px-6 py-2.5 bg-white text-slate-700 rounded-full font-sans text-sm flex items-center gap-2 shadow-sm">
-                  <div className="relative flex items-center justify-center w-4 h-4">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                    <div className="absolute w-4 h-4 bg-emerald-500 rounded-full animate-ping opacity-75"></div>
-                  </div>
-                  Recording
-                </div>
-              </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-50 border border-pink-200 text-pink-700 text-xs font-semibold self-start sm:self-auto shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
+              Live Telemetry
             </div>
           </div>
 
-          {/* Card 3: Performance Metrics */}
-          <div className={`bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-8 lg:col-span-2 hover-lift transition-all duration-700 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '200ms' }}>
-            <h3 className="font-serif text-3xl text-amber-900 mb-2">
-              Performance Insights
-            </h3>
-            <p className="font-sans text-slate-700 mb-8">
-              Real-time analytics on interview performance and candidate quality metrics.
-            </p>
+          {/* Two-Column Grid: Chart on Left, Activity Feed on Right */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+            
+            {/* Left Panel: Analytics & Animated Monthly Bars (Spans 7 cols) */}
+            <div className="lg:col-span-7 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm hover:shadow-md p-6 flex flex-col justify-between space-y-5 transition-shadow">
+              {/* Header metrics */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-serif text-4xl sm:text-5xl font-bold text-slate-950 tracking-tight">
+                    24,582
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs font-mono font-semibold px-2.5 py-1 rounded-full bg-orange-50 border border-orange-200 text-orange-700">
+                    <TrendingUp className="h-3 w-3 text-orange-600" /> +18%
+                  </span>
+                </div>
+                <p className="font-sans text-xs text-slate-500">
+                  Total practice rounds evaluated this month
+                </p>
+              </div>
 
-            {/* Animated Bar Charts */}
-            <div className="grid grid-cols-2 gap-6">
-              {/* Animated vertical bars */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <div className="text-sm font-sans text-slate-600 mb-4">This Week</div>
-                <div className="flex items-end justify-between gap-3 h-40">
-                  {[
-                    { height: 65, label: 'Mon', delay: 0 },
-                    { height: 80, label: 'Tue', delay: 100 },
-                    { height: 55, label: 'Wed', delay: 200 },
-                    { height: 90, label: 'Thu', delay: 300 },
-                    { height: 75, label: 'Fri', delay: 400 },
-                  ].map((bar, i) => (
-                    <div key={i} className="flex flex-col items-center flex-1">
-                      <div className="w-full bg-amber-100 rounded-lg overflow-hidden mb-2 relative">
-                        <div
-                          className="bg-gradient-to-t from-amber-600 to-amber-400 rounded-lg transition-all duration-1000 ease-out"
-                          style={{
-                            height: isVisible ? `${bar.height * 1.6}px` : '0px',
-                            transitionDelay: `${bar.delay + 200}ms`,
-                          }}
-                        >
-                          {/* Shimmer effect */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/30 to-transparent animate-shimmer"></div>
+              {/* Middle Telemetry Row: Key platform performance stats */}
+              <div className="grid grid-cols-3 gap-3 py-3 px-1 border-y border-slate-100 font-sans">
+                <div className="space-y-0.5">
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">Avg Score</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base sm:text-lg font-bold text-slate-900 font-serif">84.2%</span>
+                    <span className="text-[10px] font-mono text-orange-600 font-semibold bg-orange-50 px-1 rounded">+6.4%</span>
+                  </div>
+                </div>
+
+                <div className="space-y-0.5 border-x border-slate-100 px-3">
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">STT Latency</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base sm:text-lg font-bold text-slate-900 font-serif">115ms</span>
+                    <span className="text-[10px] font-mono text-orange-600 font-semibold bg-orange-50 px-1 rounded">Groq</span>
+                  </div>
+                </div>
+
+                <div className="space-y-0.5 pl-1">
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">Readiness Pass</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base sm:text-lg font-bold text-slate-900 font-serif">78.5%</span>
+                    <span className="text-[10px] font-mono text-pink-600 font-semibold bg-pink-50 px-1 rounded">Top Tier</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Animated Bar Chart with Unified Baseline & Proper Bottom Spacing */}
+              <div className="space-y-2 pt-1 pb-1">
+                <div className="relative flex items-end justify-between gap-1.5 sm:gap-2 h-36 sm:h-40 px-1 pb-2 border-b border-slate-100">
+                  {/* Subtle horizontal dashed guide lines */}
+                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-between opacity-30">
+                    <div className="border-b border-dashed border-slate-300 w-full" />
+                    <div className="border-b border-dashed border-slate-300 w-full" />
+                    <div className="border-b border-dashed border-slate-300 w-full" />
+                  </div>
+
+                  {[35, 52, 42, 65, 40, 48, 56, 74, 62, 50, 68, 58, 80, 64, 88, 96].map((height, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center h-full justify-end group relative z-10">
+                      <div
+                        className="w-full rounded-md bg-gradient-to-t from-orange-500 via-rose-500 to-pink-500 group-hover:brightness-110 shadow-xs relative overflow-hidden transition-all"
+                        style={{
+                          height: isVisible ? `${height}%` : '8%',
+                          transformOrigin: 'bottom',
+                          animation: isVisible
+                            ? `barWaveContinuous 2.6s ease-in-out ${(i * 0.16)}s infinite alternate`
+                            : 'none',
+                        }}
+                      >
+                        {/* Shimmer on bars */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Unified Month Labels with clean spacing */}
+                <div className="flex justify-between px-2 pt-1 text-[11px] font-sans text-slate-500 font-medium">
+                  <span>Jan</span>
+                  <span>Feb</span>
+                  <span>Mar</span>
+                  <span>Apr</span>
+                  <span>May</span>
+                  <span>Jun</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Panel: Live Activity Feed (Spans 5 cols) */}
+            <div className="lg:col-span-5 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm hover:shadow-md p-6 flex flex-col justify-between space-y-4 overflow-hidden relative group transition-shadow">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
+                <div>
+                  <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-pink-600">
+                    Live Telemetry
+                  </span>
+                  <h4 className="font-serif text-xl font-bold text-slate-950 tracking-tight">
+                    Live Session Feed
+                  </h4>
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-pink-50 border border-pink-200 text-[10px] font-mono text-pink-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-ping" />
+                  Live Ticker
+                </span>
+              </div>
+
+              {/* Upward Constantly Moving Activity Feed Viewport */}
+              <div className="relative h-[255px] overflow-hidden">
+                {/* Top gradient fade */}
+                <div className="pointer-events-none absolute top-0 inset-x-0 h-6 bg-gradient-to-b from-white via-white/80 to-transparent z-10" />
+                {/* Bottom gradient fade */}
+                <div className="pointer-events-none absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
+
+                {/* Animated scrolling container */}
+                <div className="animate-scroll-up flex flex-col gap-2.5 font-sans">
+                  {[...LIVE_ACTIVITIES, ...LIVE_ACTIVITIES].map((item, i) => (
+                    <div
+                      key={i}
+                      className="p-3 rounded-xl bg-slate-50/90 hover:bg-white border border-slate-200/70 hover:border-orange-300 hover:shadow-xs transition-all flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className={`w-2 h-2 rounded-full ${item.color} shrink-0 animate-pulse`} />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-900 truncate group-hover:text-orange-600 transition-colors">
+                            {item.title}
+                          </p>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                            <span className="text-slate-600 font-medium">{item.track}</span>
+                            <span>•</span>
+                            <span>{item.time}</span>
+                          </div>
                         </div>
                       </div>
-                      <span className="text-xs text-slate-500">{bar.label}</span>
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded shrink-0 ${item.badgeStyle}`}>
+                        {item.badge}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Stats cards */}
-              <div className="space-y-4">
-                {[
-                  { label: 'Avg. Score', value: '87', trend: '+12%', color: 'emerald', icon: '📈' },
-                  { label: 'Completion', value: '94%', trend: '+5%', color: 'blue', icon: '✓' },
-                  { label: 'Pass Rate', value: '76%', trend: '+8%', color: 'violet', icon: '🎯' },
-                ].map((stat, i) => (
-                  <div
-                    key={i}
-                    className={`bg-white rounded-2xl p-4 shadow-lg hover-scale transition-all duration-700 ${
-                      isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'
-                    }`}
-                    style={{ transitionDelay: `${i * 100 + 400}ms` }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 bg-${stat.color}-100 rounded-xl flex items-center justify-center text-lg`}>
-                          {stat.icon}
-                        </div>
-                        <div>
-                          <div className="text-xs text-slate-600 font-sans">{stat.label}</div>
-                          <div className="text-2xl font-serif text-slate-900">{stat.value}</div>
-                        </div>
-                      </div>
-                      <div className={`text-sm font-semibold text-${stat.color}-600`}>
-                        {stat.trend}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              {/* Bottom footer status */}
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-mono text-slate-500 shrink-0">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
+                  Continuous Telemetry
+                </span>
+                <span className="text-slate-400">Hover to pause</span>
               </div>
             </div>
+
           </div>
 
-          {/* Card 4: Activity Feed */}
-          <div className={`bg-gradient-to-br from-emerald-50 to-green-50 rounded-3xl p-8 lg:col-span-1 hover-lift transition-all duration-700 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '300ms' }}>
-            <h3 className="font-serif text-3xl text-emerald-900 mb-2">
-              Live Activity
-            </h3>
-            <p className="font-sans text-slate-700 mb-6">
-              Real-time updates on interviews and screening results.
-            </p>
+          {/* Bottom tag */}
+          <div className="mt-8 pt-6 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-sans text-slate-500">
+            <span>A more rigorous technical preparation ecosystem.</span>
+            <span className="text-slate-600 font-medium">Zero recruiters • Candidate-first platform</span>
+          </div>
+        </div>
 
-            <div className="space-y-4">
-              {[
-                { icon: '✓', color: 'bg-emerald-500', text: 'Interview completed', time: '2m ago', bg: 'bg-emerald-100' },
-                { icon: '⚡', color: 'bg-amber-500', text: 'AI screening done', time: '15m ago', bg: 'bg-amber-100' },
-                { icon: '🎯', color: 'bg-violet-500', text: 'New candidate', time: '1h ago', bg: 'bg-violet-100' },
-                { icon: '📊', color: 'bg-blue-500', text: 'Report ready', time: '2h ago', bg: 'bg-blue-100' },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center gap-3 p-3 ${item.bg} rounded-xl hover-scale transition-all`}
-                >
-                  <div className={`w-10 h-10 ${item.color} rounded-full flex items-center justify-center text-white font-bold flex-shrink-0`}>
-                    {item.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-sans text-sm text-slate-900 font-medium truncate">{item.text}</div>
-                    <div className="font-sans text-xs text-slate-600">{item.time}</div>
-                  </div>
+        {/* SECOND ROW BENTO: Live Voice AI + Live Timer + Smart Scoring */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+          {/* Card A: Live Voice Interviewer & Waveform */}
+          <div
+            className={`rounded-3xl p-6 sm:p-7 bg-white border border-slate-200/80 shadow-lg relative overflow-hidden group hover:shadow-xl hover:border-orange-500/30 transition-all duration-700 flex flex-col justify-between ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+            style={{ transitionDelay: '150ms' }}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-orange-500 to-pink-500 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
+                  <Mic className="h-4 w-4" />
                 </div>
-              ))}
-            </div>
-          </div>
+                <span className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                  Ultra-Low Latency
+                </span>
+              </div>
 
-          {/* Card 5: Global Community/Network */}
-          <div className={`bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 lg:col-span-2 hover-lift transition-all duration-700 overflow-hidden relative ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '400ms' }}>
-            {/* Orbiting particles */}
-            <div className="absolute inset-0">
-              {[...Array(12)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute w-1 h-1 bg-blue-400 rounded-full opacity-40"
-                  style={{
-                    left: '50%',
-                    top: '50%',
-                    animation: `orbit ${8 + i * 2}s linear ${i * 0.5}s infinite`,
-                  }}
-                ></div>
-              ))}
-            </div>
-
-            <div className="relative">
-              <h3 className="font-serif text-3xl text-blue-900 mb-2">
-                Global Platform
+              <h3 className="font-serif text-2xl font-bold text-slate-900 mb-1">
+                Live Voice Interviewer
               </h3>
-              <p className="font-sans text-slate-700 mb-8">
-                Connect with recruiters and candidates worldwide in real-time.
+              <p className="font-sans text-xs text-slate-600 mb-4 leading-relaxed">
+                Real spoken dialogue. Explains nuances and challenges hand-wavy claims in real-time.
               </p>
 
-              {/* Animated Globe Visualization */}
-              <div className="relative w-64 h-64 mx-auto">
-                {/* Rotating Globe wireframes */}
-                <div className="absolute inset-0 rounded-full border-2 border-blue-200 animate-rotate" style={{ animationDuration: '20s' }}></div>
-                <div className="absolute inset-0 rounded-full border-2 border-blue-200 animate-rotate" style={{ transform: 'rotateY(60deg)', animationDuration: '25s', animationDirection: 'reverse' }}></div>
-                <div className="absolute inset-0 rounded-full border-2 border-blue-200 animate-rotate" style={{ transform: 'rotateY(-60deg)', animationDuration: '30s' }}></div>
-                
-                {/* Center pulsing sphere */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-indigo-400 animate-pulse-slow"></div>
-                  <div className="absolute w-40 h-40 rounded-full border-2 border-blue-300 animate-ping" style={{ animationDuration: '3s' }}></div>
+              {/* Voice Audio Waveform Animation (Luminous Clean Design) */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-orange-50/80 via-pink-50/50 to-slate-50 border border-orange-200/70 shadow-xs space-y-2.5 mb-3.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-700 font-mono">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+                    <span className="font-semibold text-slate-800">Neural Voice Stream</span>
+                  </span>
+                  <span className="font-bold text-orange-600 bg-orange-100/70 px-1.5 py-0.5 rounded">120ms</span>
                 </div>
 
-                {/* Animated dots representing users with enhanced effects */}
-                {[
-                  { top: '20%', left: '30%', delay: '0s', size: 'w-3 h-3' },
-                  { top: '40%', left: '70%', delay: '0.5s', size: 'w-4 h-4' },
-                  { top: '60%', left: '20%', delay: '1s', size: 'w-3 h-3' },
-                  { top: '70%', left: '60%', delay: '1.5s', size: 'w-3.5 h-3.5' },
-                  { top: '30%', left: '80%', delay: '2s', size: 'w-3 h-3' },
-                  { top: '50%', left: '40%', delay: '2.5s', size: 'w-4 h-4' },
-                ].map((dot, i) => (
-                  <div
-                    key={i}
-                    className={`absolute ${dot.size} bg-blue-500 rounded-full hover-scale cursor-pointer z-10`}
-                    style={{
-                      top: dot.top,
-                      left: dot.left,
-                      animation: `pulse 1s cubic-bezier(0.4, 0, 0.6, 1) ${dot.delay} infinite`,
-                    }}
-                  >
-                    {/* Multiple ripple effects */}
-                    <div className="absolute inset-0 bg-blue-400 rounded-full" style={{ animation: 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
-                    <div className="absolute inset-0 bg-blue-300 rounded-full" style={{ animation: 'ping 2.5s cubic-bezier(0, 0, 0.2, 1) 0.3s infinite' }}></div>
-                    
-                    {/* Glow effect */}
-                    <div className="absolute inset-0 bg-blue-500 rounded-full blur-sm animate-pulse"></div>
-                  </div>
-                ))}
+                <div className="flex items-center justify-between gap-1 h-8 px-1">
+                  {[30, 65, 45, 90, 55, 100, 65, 80, 40, 85, 60, 75, 50, 88, 35].map((h, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 bg-gradient-to-t from-orange-500 via-rose-500 to-pink-500 rounded-full shadow-xs transition-all duration-300"
+                      style={{
+                        height: isVisible ? `${h}%` : '20%',
+                        animation: `pulse 1.3s ease-in-out ${i * 0.08}s infinite alternate`,
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
 
-                {/* Enhanced connection lines with animation */}
-                <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+              {/* Real-time AI Voice Dialogue Turn */}
+              <div className="p-3 rounded-xl bg-orange-50/60 border border-orange-100/90 space-y-1 font-sans">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-orange-700 flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 text-orange-600" /> Sensei Voice AI
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">Real-Time Turn</span>
+                </div>
+                <p className="text-[11px] text-slate-700 leading-snug">
+                  &ldquo;You mentioned sharding by user_id, but how do you prevent hot partition bottlenecks during peak traffic?&rdquo;
+                </p>
+              </div>
+            </div>
+
+            {/* Bottom Telemetry Status Bar */}
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-3 border-t border-slate-100 mt-4">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                Full-Duplex Speech
+              </span>
+              <span className="text-orange-600 font-semibold">Groq Whisper Engine</span>
+            </div>
+          </div>
+
+          {/* Card B: Multi-Track Practice Library */}
+          <div
+            className={`rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-orange-50/60 via-white to-pink-50/40 border border-orange-100/90 shadow-lg relative overflow-hidden group hover:shadow-xl transition-all duration-700 flex flex-col justify-between ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+            style={{ transitionDelay: '250ms' }}
+          >
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-9 w-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                  <Layers className="h-4 w-4" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                  Beginner → Expert
+                </span>
+              </div>
+
+              <h3 className="font-serif text-2xl font-bold text-slate-900 mb-1">
+                Multi-Track Practice Library
+              </h3>
+              <p className="font-sans text-xs text-slate-600 mb-5 leading-relaxed">
+                Role-tailored mock interview tracks calibrated across Tech, Sales, HR, and Communication.
+              </p>
+
+              {/* 4 Role Track Badges Grid */}
+              <div className="grid grid-cols-2 gap-2.5 mb-4 font-sans">
+                <div className="p-2.5 rounded-xl bg-white border border-orange-100 shadow-xs space-y-1 hover:border-orange-300 transition-colors">
+                  <div className="flex items-center gap-1.5 text-orange-600">
+                    <Terminal className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-bold text-slate-900">Technical</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">Frontend, Backend, System Design</p>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white border border-pink-100 shadow-xs space-y-1 hover:border-pink-300 transition-colors">
+                  <div className="flex items-center gap-1.5 text-pink-600">
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-bold text-slate-900">Sales & BD</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">Pitching, Discovery, Closing</p>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white border border-pink-100 shadow-xs space-y-1 hover:border-pink-300 transition-colors">
+                  <div className="flex items-center gap-1.5 text-pink-600">
+                    <Users className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-bold text-slate-900">HR & People</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">STAR Behavioral & Strategy</p>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white border border-orange-100 shadow-xs space-y-1 hover:border-orange-300 transition-colors">
+                  <div className="flex items-center gap-1.5 text-orange-600">
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-bold text-slate-900">Communication</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">Executive Presence & PREP</p>
+                </div>
+              </div>
+
+              {/* Bottom Difficulty Tiers Bar */}
+              <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-3 border-t border-orange-100/80">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
+                  Adaptive Practice
+                </span>
+                <span className="text-orange-600 font-semibold">4 Role Tracks</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card C: Smart Scoring Arc Metric (Earlier Beloved Style) */}
+          <div
+            className={`rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-pink-50/50 via-white to-rose-50/40 border border-pink-100/90 shadow-lg relative overflow-hidden group hover:shadow-xl transition-all duration-700 flex flex-col justify-between ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+            style={{ transitionDelay: '350ms' }}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-9 w-9 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <span className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                  Bar-Raiser Calibrated
+                </span>
+              </div>
+
+              <h3 className="font-serif text-2xl font-bold text-slate-900 mb-1">
+                Dimensional Scorecards
+              </h3>
+              <p className="font-sans text-xs text-slate-600 mb-5 leading-relaxed">
+                Instant evaluation on algorithm optimization, edge-cases, and architecture scale.
+              </p>
+
+              {/* Large Circular Score Gauge */}
+              <div className="relative w-32 h-32 mx-auto mb-5">
+                <svg className="w-full h-full transform -rotate-90">
+                  <circle cx="64" cy="64" r="54" stroke="#fed7aa" strokeWidth="10" fill="none" />
+                  <circle
+                    cx="64"
+                    cy="64"
+                    r="54"
+                    stroke="url(#bentoScoreGrad)"
+                    strokeWidth="10"
+                    fill="none"
+                    strokeDasharray={`${2 * Math.PI * 54}`}
+                    strokeDashoffset={`${2 * Math.PI * 54 * (1 - 0.91)}`}
+                    className="transition-all duration-1000"
+                    strokeLinecap="round"
+                  />
                   <defs>
-                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.2" />
-                      <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.8">
-                        <animate attributeName="stopOpacity" values="0.8;0.2;0.8" dur="2s" repeatCount="indefinite" />
-                      </stop>
-                      <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.2" />
+                    <linearGradient id="bentoScoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#f97316" />
+                      <stop offset="50%" stopColor="#f43f5e" />
+                      <stop offset="100%" stopColor="#ec4899" />
                     </linearGradient>
                   </defs>
-                  <line x1="30%" y1="20%" x2="50%" y2="50%" stroke="url(#lineGradient)" strokeWidth="2" style={{ animation: 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite' }} />
-                  <line x1="70%" y1="40%" x2="50%" y2="50%" stroke="url(#lineGradient)" strokeWidth="2" style={{ animation: 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) 0.5s infinite' }} />
-                  <line x1="20%" y1="60%" x2="50%" y2="50%" stroke="url(#lineGradient)" strokeWidth="2" style={{ animation: 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) 1s infinite' }} />
-                  <line x1="80%" y1="30%" x2="50%" y2="50%" stroke="url(#lineGradient)" strokeWidth="2" style={{ animation: 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) 1.5s infinite' }} />
                 </svg>
+                <div className="absolute inset-0 flex items-center justify-center flex-col">
+                  <span className="font-serif text-3xl sm:text-4xl font-bold text-slate-900">91</span>
+                  <span className="text-[10px] font-mono uppercase text-slate-500 font-semibold tracking-wider">
+                    Overall
+                  </span>
+                </div>
               </div>
 
-              {/* Stats with animation */}
-              <div className="grid grid-cols-3 gap-4 mt-8">
+              {/* 3 Skill Breakdown Progress Bars */}
+              <div className="space-y-2.5 text-xs font-sans">
                 {[
-                  { value: '50K+', label: 'Interviews', delay: '500ms' },
-                  { value: '120+', label: 'Countries', delay: '600ms' },
-                  { value: '98%', label: 'Satisfaction', delay: '700ms' },
-                ].map((stat, i) => (
-                  <div
-                    key={i}
-                    className={`text-center transition-all duration-700 ${
-                      isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
-                    }`}
-                    style={{ transitionDelay: stat.delay }}
-                  >
-                    <div className="text-2xl font-serif text-blue-900 mb-1">{stat.value}</div>
-                    <div className="text-xs text-slate-600 uppercase tracking-wider">{stat.label}</div>
+                  { label: 'Technical Depth', val: 94 },
+                  { label: 'Communication Clarity', val: 88 },
+                  { label: 'Problem Solving Speed', val: 92 },
+                ].map((skill, i) => (
+                  <div key={i} className="space-y-1">
+                    <div className="flex justify-between font-medium">
+                      <span className="text-slate-600 text-[11px]">{skill.label}</span>
+                      <span className="text-slate-900 font-bold text-[11px]">{skill.val}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-orange-500 to-pink-500 h-1.5 rounded-full transition-all duration-1000"
+                        style={{
+                          width: isVisible ? `${skill.val}%` : '0%',
+                          transitionDelay: `${i * 150 + 400}ms`,
+                        }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          <style jsx>{`
-            @keyframes orbit {
-              0% {
-                transform: translate(-50%, -50%) rotate(0deg) translateX(120px) rotate(0deg);
-              }
-              100% {
-                transform: translate(-50%, -50%) rotate(360deg) translateX(120px) rotate(-360deg);
-              }
-            }
-          `}</style>
-
-          {/* Card 6: Smart Scorecard */}
-          <div className={`bg-gradient-to-br from-pink-50 to-rose-50 rounded-3xl p-8 lg:col-span-1 hover-lift transition-all duration-700 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '500ms' }}>
-            <h3 className="font-serif text-3xl text-pink-900 mb-2">
-              Smart Scoring
-            </h3>
-            <p className="font-sans text-slate-700 mb-6">
-              AI-powered evaluation with detailed performance insights.
-            </p>
-
-            {/* Circular progress */}
-            <div className="relative w-40 h-40 mx-auto mb-6">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle
-                  cx="80"
-                  cy="80"
-                  r="70"
-                  stroke="#fecdd3"
-                  strokeWidth="12"
-                  fill="none"
-                />
-                <circle
-                  cx="80"
-                  cy="80"
-                  r="70"
-                  stroke="url(#scoreGradient)"
-                  strokeWidth="12"
-                  fill="none"
-                  strokeDasharray={`${2 * Math.PI * 70}`}
-                  strokeDashoffset={`${2 * Math.PI * 70 * (1 - 0.87)}`}
-                  className="transition-all duration-1000"
-                  strokeLinecap="round"
-                />
-                <defs>
-                  <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#ec4899" />
-                    <stop offset="100%" stopColor="#f43f5e" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center flex-col">
-                <div className="text-4xl font-serif text-pink-900">87</div>
-                <div className="text-sm text-slate-600">Overall</div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {[
-                { label: 'Technical', value: 92 },
-                { label: 'Communication', value: 85 },
-                { label: 'Problem Solving', value: 88 },
-              ].map((skill, i) => (
-                <div key={i} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-700 font-sans">{skill.label}</span>
-                    <span className="text-slate-900 font-semibold">{skill.value}%</span>
-                  </div>
-                  <div className="w-full bg-pink-100 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-pink-500 to-rose-500 h-2 rounded-full transition-all duration-1000"
-                      style={{
-                        width: isVisible ? `${skill.value}%` : '0%',
-                        transitionDelay: `${i * 200 + 500}ms`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </section>

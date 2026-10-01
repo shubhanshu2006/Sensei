@@ -1,14 +1,27 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import {
+  Sparkles,
+  Mic,
+  FileText,
+  CheckCircle2,
+  TrendingUp,
+  Volume2,
+  Users,
+  MessageSquare,
+  Terminal,
+  ShieldCheck,
+  ArrowRight,
+  Brain,
+} from 'lucide-react';
 
 export default function Features() {
   const [isVisible, setIsVisible] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [activeSpeechState, setActiveSpeechState] = useState<'ai' | 'candidate'>('ai');
   const sectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMounted(true);
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -27,344 +40,333 @@ export default function Features() {
     return () => observer.disconnect();
   }, []);
 
+  // Alternate AI speaking and Candidate speaking animation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveSpeechState((prev) => (prev === 'ai' ? 'candidate' : 'ai'));
+    }, 3200);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <section ref={sectionRef} className="py-32 px-6 sm:px-8 lg:px-12 bg-white">
-      <div className="max-w-7xl mx-auto">
-        {/* Section header - matching Platform showcase style */}
-        <div className="text-center mb-20">
-          <div className="inline-block px-4 py-2 bg-slate-100 rounded-full mb-6 shadow-sm">
-            <span className="text-sm font-sans text-slate-700 uppercase tracking-wider">Features</span>
+    <section ref={sectionRef} className="py-20 sm:py-24 px-4 sm:px-6 lg:px-8 bg-white relative overflow-hidden">
+      {/* Background ambient glow in Orange & Pink */}
+      <div className="absolute top-1/4 -right-32 w-80 h-80 bg-gradient-to-br from-pink-500/10 to-orange-400/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 -left-32 w-80 h-80 bg-gradient-to-br from-orange-400/10 to-rose-400/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10 space-y-12">
+        {/* Section Header */}
+        <div className="text-center space-y-2.5 max-w-2xl mx-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-gradient-to-r from-orange-500/10 to-pink-500/10 border border-orange-500/20 shadow-xs">
+            <Sparkles className="h-3 w-3 text-orange-500" />
+            <span className="text-[11px] font-sans font-semibold uppercase tracking-wider bg-gradient-to-r from-orange-600 to-pink-600 bg-clip-text text-transparent">
+              Core Platform Capabilities
+            </span>
           </div>
-          <h2 className="font-serif text-5xl sm:text-6xl lg:text-7xl text-slate-900 mb-6">
-            Everything you need
+
+          <h2 className="font-serif text-3xl sm:text-4xl text-slate-900 tracking-tight font-bold">
+            How Sensei prepares you for{' '}
+            <span className="bg-gradient-to-r from-orange-500 via-rose-500 to-pink-600 bg-clip-text text-transparent">
+              real interview rounds
+            </span>
           </h2>
-          <p className="font-sans text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            From intelligent screening to adaptive interviews, 
-            Sensei handles the entire hiring workflow.
+
+          <p className="font-sans text-xs sm:text-sm text-slate-600 leading-relaxed max-w-lg mx-auto">
+            From resume-tailored LangGraph questioning and live neural voice dialogue to 4-dimensional bar-raiser scorecards.
           </p>
         </div>
 
-        {/* Premium Bento Grid - asymmetric layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
-          
-          {/* Card 1: AI Screening - Large card, spans 2 columns */}
-          <div className={`group bg-gradient-to-br from-violet-50 to-purple-50 rounded-3xl p-10 lg:col-span-2 border border-violet-100 hover:shadow-2xl transition-all duration-700 overflow-hidden ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}>
-            {/* Floating particles background - constant animation */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {mounted && [...Array(6)].map((_, i) => {
-                const left = Math.random() * 100;
-                const top = Math.random() * 100;
-                const delay = i * 0.8;
-                const duration = 5 + Math.random() * 3;
-                
-                return (
-                  <div
-                    key={i}
-                    className="absolute w-2 h-2 bg-violet-400/20 rounded-full"
-                    style={{
-                      left: `${left}%`,
-                      top: `${top}%`,
-                      animation: `${delay}s ease-in-out ${duration}s infinite float`,
-                    }}
-                  ></div>
-                );
-              })}
-            </div>
+        {/* 3 CORE REAL SENSEI FEATURES */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            {/* Animated gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-100/0 via-purple-100/50 to-violet-100/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            
-            <div className="flex flex-col h-full relative">
-              {/* Icon with animated background */}
-              <div className="relative w-16 h-16 mb-6">
-                <div className="absolute inset-0 bg-violet-200 rounded-2xl animate-pulse opacity-50 group-hover:scale-110 transition-transform duration-300"></div>
-                <div className="relative w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                </div>
+          {/* CARD 1: RESUME-PERSONALIZED QUESTIONING (InterviewGraph + ResumeParser) */}
+          <div
+            className={`rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-orange-50/50 via-white to-pink-50/30 border border-orange-100 shadow-md relative overflow-hidden group hover:shadow-xl transition-all duration-700 flex flex-col justify-between ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-orange-600 font-semibold mb-2">
+                <Brain className="h-3.5 w-3.5 text-orange-500" />
+                Adaptive LangGraph Engine
               </div>
-              
-              <h3 className="font-serif text-4xl text-black mb-4">
-                AI Screening
+
+              <h3 className="font-serif text-xl sm:text-2xl font-bold text-slate-900 mb-1">
+                Resume-Tailored Questions
               </h3>
-              
-              <p className="font-sans text-lg text-slate-700 leading-relaxed mb-8">
-                Automatically analyze resumes, GitHub profiles, and portfolios to identify the best candidates.
+              <p className="font-sans text-xs text-slate-600 mb-4 leading-relaxed">
+                Sensei parses your uploaded resume, extracts your claimed tech stack and projects, and formulates targeted questions.
               </p>
 
-              {/* Visual element - animated scanning bars with hover effect */}
-              <div className="mt-auto space-y-2">
-                {[60, 85, 70].map((width, i) => (
-                  <div key={i} className="flex items-center gap-3 group/bar">
-                    <div className="flex-1 h-2 bg-violet-200 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-1000 group-hover/bar:from-violet-600 group-hover/bar:to-purple-600"
-                        style={{ 
-                          width: isVisible ? `${width}%` : '0%',
-                          transitionDelay: `${i * 150}ms`
+              {/* Resume Parsing + Question Branching Box */}
+              <div className="rounded-2xl bg-white border border-orange-100 p-4 shadow-xs space-y-3">
+                {/* Resume Source Pill */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-[10px] font-mono">
+                  <div className="flex items-center gap-1.5 text-slate-700">
+                    <FileText className="h-3.5 w-3.5 text-orange-500" />
+                    <span className="font-semibold">Candidate_Resume.pdf</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-semibold border border-emerald-200">
+                    Parsed
+                  </span>
+                </div>
+
+                {/* Detected Competency Tags */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono text-slate-400 block">Extracted Stack & Skills:</span>
+                  <div className="flex flex-wrap gap-1 text-[10px] font-mono">
+                    <span className="px-2 py-0.5 rounded-md bg-orange-50 text-orange-700 border border-orange-200">Distributed Systems</span>
+                    <span className="px-2 py-0.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200">Kafka & Redis</span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">PostgreSQL</span>
+                  </div>
+                </div>
+
+                {/* LangGraph Generated Question */}
+                <div className="p-3 rounded-xl bg-gradient-to-br from-amber-50/80 to-orange-50/50 border border-orange-200/70 space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span className="text-orange-800 font-bold flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-orange-600" /> Generated Question #2
+                    </span>
+                    <span className="text-orange-600 text-[9px]">Uncovered Skill Probe</span>
+                  </div>
+                  <p className="text-[11px] font-sans text-slate-800 leading-snug">
+                    &quot;On your resume, you mention building a payment event pipeline. How did you ensure idempotency across distributed microservices?&quot;
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Tag */}
+            <div className="mt-4 pt-3 border-t border-orange-100 flex items-center justify-between text-[11px] font-mono text-slate-600">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Dynamic Skill Graph
+              </span>
+              <span className="text-orange-600 font-bold">100% Personalized</span>
+            </div>
+          </div>
+
+          {/* CARD 2: LIVE VOICE INTERVIEW ROOM (WebSocket + Speech Synthesis) */}
+          <div
+            className={`rounded-3xl p-5 sm:p-6 bg-slate-950 text-white border border-slate-800 shadow-xl relative overflow-hidden group hover:shadow-2xl hover:border-slate-700 transition-all duration-700 flex flex-col justify-between ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+            style={{ transitionDelay: '150ms' }}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-orange-400 font-semibold">
+                  <Mic className="h-3.5 w-3.5 text-orange-400" />
+                  Live Interview Room
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  WebSocket Stream
+                </div>
+              </div>
+
+              <h3 className="font-serif text-xl sm:text-2xl font-bold text-white mb-1">
+                Voice-Driven Interaction
+              </h3>
+              <p className="font-sans text-xs text-slate-400 mb-4 leading-relaxed">
+                Real spoken dialogue using natural speech synthesis (Jenny / Google Neural TTS) and real-time audio speech-to-text.
+              </p>
+
+              {/* Interview Room Simulation Interface */}
+              <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-3.5 space-y-3 font-mono text-[11px]">
+                {/* Voice Engine Header */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-[10px] text-slate-400">
+                  <div className="flex items-center gap-1.5">
+                    <Volume2 className="h-3.5 w-3.5 text-pink-400" />
+                    <span>Voice: Natural Neural (0.98x)</span>
+                  </div>
+                  <span className="text-orange-400 font-medium">Question 3 of 6</span>
+                </div>
+
+                {/* Animated Speech Waveform reacting to active speaker */}
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="flex items-center gap-1.5 text-slate-300">
+                      <span className={`w-2 h-2 rounded-full ${activeSpeechState === 'ai' ? 'bg-orange-400 animate-pulse' : 'bg-pink-400 animate-pulse'}`} />
+                      {activeSpeechState === 'ai' ? 'Sensei AI Speaking...' : 'Candidate Answering...'}
+                    </span>
+                    <span className="text-slate-500">Live Transcript</span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-1 h-7 px-1">
+                    {[35, 60, 40, 85, 95, 70, 50, 80, 65, 90, 45, 75, 55, 80, 40].map((h, i) => (
+                      <div
+                        key={i}
+                        className={`flex-1 rounded-full transition-all duration-300 ${
+                          activeSpeechState === 'ai'
+                            ? 'bg-gradient-to-t from-orange-500 to-rose-500'
+                            : 'bg-gradient-to-t from-pink-500 to-orange-400'
+                        }`}
+                        style={{
+                          height: `${h}%`,
+                          animation: `pulse 1.2s ease-in-out ${i * 0.08}s infinite alternate`,
                         }}
-                      >
-                        {/* Shimmer effect */}
-                        <div className="w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                      />
+                    ))}
+                  </div>
+
+                  {/* Speech transcript snippet */}
+                  <p className="text-[10px] font-sans text-slate-300 pt-1 leading-snug">
+                    {activeSpeechState === 'ai'
+                      ? '"Can you walk me through how you handled partition tolerance during network spikes?"'
+                      : '"We implemented a write-ahead log combined with consensus heartbeats to prevent split-brain..."'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Audio Navigation */}
+            <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+              <span className="text-slate-400">Mic & Camera Active</span>
+              <span className="text-orange-400 font-bold">Low Latency</span>
+            </div>
+          </div>
+
+          {/* CARD 3: 4-DIMENSIONAL SCORECARD (EvaluationService) */}
+          <div
+            className={`rounded-3xl p-5 sm:p-6 bg-white border border-slate-200/80 shadow-md relative overflow-hidden group hover:shadow-xl transition-all duration-700 flex flex-col justify-between ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+            style={{ transitionDelay: '300ms' }}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-pink-600 font-semibold">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Bar-Raiser Evaluation
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-mono font-bold">
+                  STRONG_YES
+                </span>
+              </div>
+
+              <h3 className="font-serif text-xl sm:text-2xl font-bold text-slate-900 mb-1">
+                4-Dimensional Scorecard
+              </h3>
+              <p className="font-sans text-xs text-slate-600 mb-4 leading-relaxed">
+                Instant evaluation against 4 distinct competencies calibrated to your chosen role track, complete with actionable feedback.
+              </p>
+
+              {/* Scorecard Metric Breakdown */}
+              <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3.5 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                  <span className="text-xs font-semibold text-slate-700">Competency Breakdown</span>
+                  <span className="text-xs font-mono font-bold text-slate-900">Overall: 91/100</span>
+                </div>
+
+                {/* 4 Real Evaluation Dimensions */}
+                <div className="space-y-2 text-xs font-sans">
+                  {[
+                    { name: 'Technical Knowledge', score: 94 },
+                    { name: 'Problem Solving', score: 90 },
+                    { name: 'Communication & STAR', score: 88 },
+                    { name: 'Culture & Confidence', score: 92 },
+                  ].map((dim, idx) => (
+                    <div key={idx} className="space-y-0.5">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-600">{dim.name}</span>
+                        <span className="font-bold text-slate-900">{dim.score}%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-orange-500 to-pink-500 h-1.5 rounded-full transition-all duration-1000"
+                          style={{
+                            width: isVisible ? `${dim.score}%` : '0%',
+                            transitionDelay: `${idx * 100 + 200}ms`,
+                          }}
+                        />
                       </div>
                     </div>
-                    <span className="text-sm font-semibold text-violet-700 w-12 group-hover/bar:scale-110 transition-transform">{width}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Voice Interviews - Tall card */}
-          <div className={`group bg-gradient-to-br from-cyan-50 to-blue-50 rounded-3xl p-10 border border-cyan-100 hover:shadow-2xl transition-all duration-700 overflow-hidden relative ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '100ms' }}>
-            {/* Floating particles background - constant animation */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {mounted && [...Array(5)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute w-1.5 h-1.5 bg-cyan-400/20 rounded-full"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
-                    animation: `float ${6 + Math.random() * 2}s ease-in-out ${i * 0.7}s infinite`,
-                  }}
-                ></div>
-              ))}
-            </div>
-
-            {/* Animated gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-100/0 via-blue-100/50 to-cyan-100/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            
-            <div className="flex flex-col h-full relative">
-              <div className="relative w-16 h-16 mb-6">
-                <div className="absolute inset-0 bg-cyan-200 rounded-2xl animate-pulse opacity-50 group-hover:scale-110 transition-transform duration-300"></div>
-                <div className="relative w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                </div>
-              </div>
-
-              <h3 className="font-serif text-4xl text-black mb-4">
-                Voice Interviews
-              </h3>
-
-              <p className="font-sans text-lg text-slate-700 leading-relaxed mb-8">
-                Conduct natural, conversational interviews with AI that adapts to each candidate in real-time.
-              </p>
-
-              {/* Audio wave visualization with enhanced animation */}
-              <div className="mt-auto flex items-end justify-between h-20 gap-1">
-                {[40, 70, 55, 85, 60, 75, 50, 90, 65].map((height, i) => (
-                  <div 
-                    key={i}
-                    className="flex-1 bg-gradient-to-t from-cyan-500 to-blue-500 rounded-full transition-all duration-500 group-hover:from-cyan-600 group-hover:to-blue-600 hover:scale-110"
-                    style={{ 
-                      height: isVisible ? `${height}%` : '0%',
-                      transitionDelay: `${i * 50 + 100}ms`,
-                      animation: isVisible ? `wave 1.5s ease-in-out ${i * 0.1}s infinite` : 'none',
-                    }}
-                  ></div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <style jsx>{`
-            @keyframes wave {
-              0%, 100% { opacity: 0.6; }
-              50% { opacity: 1; }
-            }
-          `}</style>
-
-          {/* Card 3: Adaptive Questions - Small card */}
-          <div className={`group bg-gradient-to-br from-emerald-50 to-green-50 rounded-3xl p-10 border border-emerald-100 hover:shadow-2xl transition-all duration-700 overflow-hidden relative ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '200ms' }}>
-            {/* Pulsing glow - constant animation */}
-            <div className="absolute top-4 right-4 w-20 h-20 bg-emerald-400/10 rounded-full animate-pulse"></div>
-            
-            {/* Animated gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-100/0 via-green-100/50 to-emerald-100/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            
-            <div className="relative w-16 h-16 mb-6">
-              <div className="absolute inset-0 bg-emerald-200 rounded-2xl animate-pulse opacity-50 group-hover:scale-110 transition-transform duration-300"></div>
-              <div className="relative w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-            </div>
-
-            <h3 className="font-serif text-3xl text-black mb-4">
-              Adaptive Questions
-            </h3>
-
-            <p className="font-sans text-[15px] text-slate-700 leading-relaxed">
-              Dynamic follow-up questions that probe deeper based on candidate responses and context.
-            </p>
-          </div>
-
-          {/* Card 4: Smart Scorecards - Medium card, spans 2 columns */}
-          <div className={`group bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-10 lg:col-span-2 border border-amber-100 hover:shadow-2xl transition-all duration-700 overflow-hidden relative ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '300ms' }}>
-            {/* Floating particles background - constant animation */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {mounted && [...Array(4)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute w-2 h-2 bg-amber-400/15 rounded-full"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
-                    animation: `float ${7 + Math.random() * 2}s ease-in-out ${i * 1}s infinite`,
-                  }}
-                ></div>
-              ))}
-            </div>
-
-            {/* Animated gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-100/0 via-orange-100/50 to-amber-100/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            
-            <div className="flex flex-col md:flex-row gap-8 items-start relative">
-              <div className="flex-1">
-                <div className="relative w-16 h-16 mb-6">
-                  <div className="absolute inset-0 bg-amber-200 rounded-2xl animate-pulse opacity-50 group-hover:scale-110 transition-transform duration-300"></div>
-                  <div className="relative w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  </div>
+                  ))}
                 </div>
 
-                <h3 className="font-serif text-4xl text-black mb-4">
-                  Smart Scorecards
-                </h3>
-
-                <p className="font-sans text-lg text-slate-700 leading-relaxed">
-                  Structured evaluation reports with insights on technical skills, communication, and problem-solving.
-                </p>
-              </div>
-
-              {/* Score visualization */}
-              <div className="flex flex-col gap-4 min-w-[200px]">
-                {[
-                  { label: 'Technical', score: 92, color: 'from-amber-500 to-orange-500' },
-                  { label: 'Communication', score: 87, color: 'from-amber-500 to-orange-500' },
-                  { label: 'Problem Solving', score: 95, color: 'from-amber-500 to-orange-500' },
-                ].map((item, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-sans text-slate-700">{item.label}</span>
-                      <span className="text-lg font-serif text-black font-semibold">{item.score}</span>
-                    </div>
-                    <div className="h-2 bg-amber-200 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full bg-gradient-to-r ${item.color} rounded-full transition-all duration-1000`}
-                        style={{ 
-                          width: isVisible ? `${item.score}%` : '0%',
-                          transitionDelay: `${i * 150 + 300}ms`
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Card 5: Resume Insights - Small card */}
-          <div className={`group bg-gradient-to-br from-pink-50 to-rose-50 rounded-3xl p-10 border border-pink-100 hover:shadow-2xl transition-all duration-700 overflow-hidden relative ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '400ms' }}>
-            {/* Pulsing rings - constant animation */}
-            <div className="absolute -top-10 -right-10 w-32 h-32 border border-pink-200/30 rounded-full" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
-            <div className="absolute -top-10 -right-10 w-32 h-32 border border-pink-200/20 rounded-full" style={{ animation: 'ping 3s cubic-bezier(0, 0, 0.2, 1) 1s infinite' }}></div>
-            
-            {/* Animated gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-pink-100/0 via-rose-100/50 to-pink-100/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            
-            <div className="relative w-16 h-16 mb-6">
-              <div className="absolute inset-0 bg-pink-200 rounded-2xl animate-pulse opacity-50 group-hover:scale-110 transition-transform duration-300"></div>
-              <div className="relative w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-            </div>
-
-            <h3 className="font-serif text-3xl text-black mb-4">
-              Resume Insights
-            </h3>
-
-            <p className="font-sans text-[15px] text-slate-700 leading-relaxed">
-              Private, personalized feedback to help candidates improve their resumes and interview skills.
-            </p>
-          </div>
-
-          {/* Card 6: Practice Library - Medium card */}
-          <div className={`group bg-gradient-to-br from-indigo-50 to-blue-50 rounded-3xl p-10 lg:col-span-2 border border-indigo-100 hover:shadow-2xl transition-all duration-700 overflow-hidden relative ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`} style={{ transitionDelay: '500ms' }}>
-            {/* Floating particles background - constant animation */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {mounted && [...Array(5)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute w-1.5 h-1.5 bg-indigo-400/20 rounded-full"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
-                    animation: `float ${6 + Math.random() * 3}s ease-in-out ${i * 0.9}s infinite`,
-                  }}
-                ></div>
-              ))}
-            </div>
-
-            {/* Animated gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-100/0 via-blue-100/50 to-indigo-100/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            
-            <div className="relative w-16 h-16 mb-6">
-              <div className="absolute inset-0 bg-indigo-200 rounded-2xl animate-pulse opacity-50 group-hover:scale-110 transition-transform duration-300"></div>
-              <div className="relative w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-            </div>
-
-            <h3 className="font-serif text-4xl text-black mb-4">
-              Practice Library
-            </h3>
-
-            <p className="font-sans text-lg text-slate-700 leading-relaxed mb-8">
-              Curated interview scenarios for candidates to practice and prepare for real opportunities.
-            </p>
-
-            {/* Library items grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {['JavaScript', 'React', 'Python', 'System Design'].map((topic, i) => (
-                <div 
-                  key={i}
-                  className={`px-4 py-3 bg-white rounded-xl text-center text-sm font-sans text-slate-700 border border-indigo-200 hover:border-indigo-400 transition-all duration-300 ${
-                    isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
-                  }`}
-                  style={{ transitionDelay: `${i * 100 + 500}ms` }}
-                >
-                  {topic}
+                {/* Actionable Feedback Bullet */}
+                <div className="pt-1 text-[11px] font-sans text-emerald-800 bg-emerald-50/70 p-2 rounded-lg border border-emerald-100 flex items-start gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>&quot;Strong articulation of database sharding and trade-offs under high write concurrency.&quot;</span>
                 </div>
-              ))}
+              </div>
+            </div>
+
+            {/* Bottom Scorecard Link */}
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] font-mono text-slate-600">
+              <span className="text-slate-500">Strengths & Improvement Plan</span>
+              <span className="text-pink-600 font-bold flex items-center gap-1">
+                Full Report <ArrowRight className="h-3 w-3" />
+              </span>
             </div>
           </div>
 
         </div>
+
+        {/* BOTTOM SECTION: MULTI-TRACK PRACTICE LIBRARY (Directly from candidate/practice/page.tsx) */}
+        <div className="p-5 sm:p-7 rounded-3xl bg-slate-900 text-white border border-slate-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <h4 className="font-serif text-lg sm:text-xl font-bold text-white">
+                Multi-Track Practice Library
+              </h4>
+              <p className="font-sans text-xs text-slate-400">
+                Choose your specific domain. Sensei adapts its questions and evaluation rubric accordingly.
+              </p>
+            </div>
+            <span className="text-[11px] font-mono text-orange-400 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 self-start sm:self-auto">
+              Beginner → Expert Tiers
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-sans">
+            {[
+              {
+                title: 'Technical Roles',
+                desc: 'Frontend, Backend, System Design, DevOps, Mobile & ML',
+                icon: Terminal,
+                color: 'text-orange-400',
+              },
+              {
+                title: 'Sales & BD',
+                desc: 'Pitching, Value Proposition, Discovery & Deal Closing',
+                icon: TrendingUp,
+                color: 'text-pink-400',
+              },
+              {
+                title: 'HR & People Ops',
+                desc: 'People Strategy, STAR Method, Compliance & Empathy',
+                icon: Users,
+                color: 'text-rose-400',
+              },
+              {
+                title: 'Communication',
+                desc: 'Executive Presence, PREP Framework, Clarity & Tone',
+                icon: MessageSquare,
+                color: 'text-amber-400',
+              },
+            ].map((track, idx) => {
+              const Icon = track.icon;
+              return (
+                <div
+                  key={idx}
+                  className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 hover:border-slate-700 transition-all space-y-1.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon className={`h-4 w-4 ${track.color}`} />
+                    <span className="text-xs font-bold text-white">{track.title}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-snug">{track.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
       </div>
     </section>
   );
 }
+
+

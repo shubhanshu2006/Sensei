@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 
 export default function TwoPathways() {
   const [isVisible, setIsVisible] = useState(false);
@@ -113,9 +114,12 @@ export default function TwoPathways() {
                 ))}
               </ul>
 
-              <button className="w-full py-4 bg-slate-900 text-white rounded-full font-sans font-medium text-lg hover:bg-slate-800 transition-all duration-300 shadow-lg hover:shadow-xl group-hover:scale-105">
+              <Link
+                href="/sign-up"
+                className="block text-center w-full py-4 bg-slate-900 text-white rounded-full font-sans font-medium text-lg hover:bg-slate-800 transition-all duration-300 shadow-lg hover:shadow-xl group-hover:scale-105"
+              >
                 Start Hiring →
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -181,9 +185,12 @@ export default function TwoPathways() {
                 ))}
               </ul>
 
-              <button className="w-full py-4 bg-white text-slate-900 rounded-full font-sans font-medium text-lg hover:bg-slate-100 transition-all duration-300 shadow-lg hover:shadow-xl group-hover:scale-105">
+              <Link
+                href="/sign-up"
+                className="block text-center w-full py-4 bg-white text-slate-900 rounded-full font-sans font-medium text-lg hover:bg-slate-100 transition-all duration-300 shadow-lg hover:shadow-xl group-hover:scale-105"
+              >
                 Start Practicing →
-              </button>
+              </Link>
             </div>
           </div>
         </div>
