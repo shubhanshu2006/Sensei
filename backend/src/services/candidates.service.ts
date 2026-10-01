@@ -263,11 +263,11 @@ export class CandidateService {
       },
     });
 
-    // 3+ total accounts (2+ others + this one) -> deny.
-    if (existingCount >= 2) {
+    // Block account switching / multi-accounting on the same device
+    if (existingCount >= 1) {
       throw new ApiError(
-        400,
-        "Device already registered with too many accounts",
+        403,
+        "This device is already associated with an existing Sensei account. Multiple accounts or account switching is not permitted on the same device.",
       );
     }
 
@@ -295,6 +295,7 @@ export class CandidateService {
       practiceInterviews,
       hiringInterviews,
       profile,
+      scorecardAggregate,
     ] = await Promise.all([
       // All applications ever submitted by this candidate.
       prisma.application.count({
@@ -338,7 +339,26 @@ export class CandidateService {
           practiceCreditsUsed: true,
         },
       }),
+
+      // Average score across all completed sessions with scorecards
+      prisma.scorecard.aggregate({
+        where: {
+          session: {
+            OR: [
+              { candidateId },
+              { application: { candidateId } },
+            ],
+          },
+        },
+        _avg: {
+          overallScore: true,
+        },
+      }),
     ]);
+
+    const averageScore = scorecardAggregate?._avg?.overallScore != null
+      ? Math.round(scorecardAggregate._avg.overallScore)
+      : null;
 
     return {
       totalApplications,
@@ -348,6 +368,7 @@ export class CandidateService {
       creditsRemaining: profile
         ? profile.practiceCredits - profile.practiceCreditsUsed
         : 0,
+      averageScore,
     };
   }
 }

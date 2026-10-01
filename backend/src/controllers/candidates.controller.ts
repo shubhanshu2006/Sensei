@@ -3,6 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import { candidateService } from "../services/candidates.service.js";
+import { s3Service } from "../services/storage/S3Service.js";
 import type {
   UpdateCandidateProfileInput,
   PaginationQueryInput,
@@ -13,6 +14,47 @@ import type {
 // All methods are wrapped in asyncHandler so thrown ApiErrors propagate
 // cleanly to the global error handler.
 export class CandidateController {
+  // getResumeUploadUrl
+  // POST /candidates/resume/upload-url
+  // Generates an S3 presigned PUT URL for direct resume upload.
+
+  getResumeUploadUrl = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      if (!req.user) {
+        throw new ApiError(401, "Authentication required");
+      }
+      const candidateId = req.user.candidateProfileId || req.user.id;
+      const { fileName, contentType } = req.body as {
+        fileName: string;
+        contentType: string;
+      };
+
+      if (!fileName || typeof fileName !== "string") {
+        throw new ApiError(400, "fileName is required and must be a string");
+      }
+      if (!contentType || typeof contentType !== "string") {
+        throw new ApiError(400, "contentType is required and must be a string");
+      }
+
+      const result = await s3Service.generateUploadUrl(
+        "candidates",
+        candidateId,
+        fileName,
+        contentType,
+      );
+
+      res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            result,
+            "Resume upload URL generated successfully",
+          ),
+        );
+    },
+  );
+
   // getProfile
   // GET /candidates/profile
   // Returns the full candidate profile (including parent user fields).
@@ -53,7 +95,9 @@ export class CandidateController {
 
   updateResumeInfo = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
-      const candidateId = req.user!.candidateProfileId!;
+      if (!req.user) {
+        throw new ApiError(401, "Authentication required");
+      }
       const { resumeUrl, fileName } = req.body as {
         resumeUrl: string;
         fileName: string;
@@ -66,19 +110,66 @@ export class CandidateController {
         throw new ApiError(400, "fileName is required and must be a string");
       }
 
-      const updated = await candidateService.updateResumeInfo(
-        candidateId,
-        resumeUrl,
-        fileName,
-      );
+      let updated = null;
+      if (req.user.candidateProfileId) {
+        updated = await candidateService.updateResumeInfo(
+          req.user.candidateProfileId,
+          resumeUrl,
+          fileName,
+        );
+      }
 
       res
         .status(200)
         .json(
           new ApiResponse(
             200,
-            updated,
+            { resumeUrl, fileName, profile: updated },
             "Resume information updated successfully",
+          ),
+        );
+    },
+  );
+
+  // uploadResumeDirectly
+  // POST /candidates/resume/upload
+  // Receives multipart file, uploads to S3 directly server-side (bypasses browser CORS), and saves to profile.
+  uploadResumeDirectly = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      if (!req.user) {
+        throw new ApiError(401, "Authentication required");
+      }
+      const candidateId = req.user.candidateProfileId || req.user.id;
+      const file = req.file;
+
+      if (!file) {
+        throw new ApiError(400, "File is required");
+      }
+
+      const { fileUrl } = await s3Service.uploadFile(
+        "candidates",
+        candidateId,
+        file.originalname,
+        file.buffer,
+        file.mimetype,
+      );
+
+      let updated = null;
+      if (req.user.candidateProfileId) {
+        updated = await candidateService.updateResumeInfo(
+          req.user.candidateProfileId,
+          fileUrl,
+          file.originalname,
+        );
+      }
+
+      res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            { resumeUrl: fileUrl, fileName: file.originalname, profile: updated },
+            "Resume uploaded and stored successfully",
           ),
         );
     },

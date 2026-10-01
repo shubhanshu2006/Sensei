@@ -21,10 +21,10 @@ export type UpdateCandidateProfileInput = z.infer<
   typeof updateCandidateProfileSchema
 >;
 
-// validateFingerprintSchema
+// validateFingerprintSchema (Open-Source FingerprintJS produces visitorId without requestId)
 export const validateFingerprintSchema = z.object({
   visitorId: z.string().min(1, "visitorId is required"),
-  requestId: z.string().min(1, "requestId is required"),
+  requestId: z.string().optional(),
 });
 
 export type ValidateFingerprintInput = z.infer<

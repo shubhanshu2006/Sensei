@@ -15,6 +15,12 @@ import {
   validateFingerprintSchema,
   paginationQuerySchema,
 } from "../validations/candidates.validation.js";
+import multer from "multer";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
 
 const router = Router();
 
@@ -42,13 +48,30 @@ router.put(
   candidateController.updateProfile,
 );
 
-// Resume route
+// Resume routes
 // uploadLimiter prevents storage abuse from rapid repeated requests.
+
+/** POST /candidates/resume/upload-url — generate presigned S3 upload URL */
+router.post(
+  "/resume/upload-url",
+  authenticateUser,
+  uploadLimiter,
+  candidateController.getResumeUploadUrl,
+);
+
+/** POST /candidates/resume/upload — direct multipart upload through backend to S3 (no browser CORS) */
+router.post(
+  "/resume/upload",
+  authenticateUser,
+  uploadLimiter,
+  upload.single("file"),
+  candidateController.uploadResumeDirectly,
+);
 
 /** PUT /candidates/resume — store resume URL + metadata after S3 upload */
 router.put(
   "/resume",
-  ...candidateAuth,
+  authenticateUser,
   uploadLimiter,
   candidateController.updateResumeInfo,
 );
