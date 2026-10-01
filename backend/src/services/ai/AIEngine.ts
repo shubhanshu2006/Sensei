@@ -431,58 +431,81 @@ RULES:
 
       const startTime = Date.now();
       const { config } = await import("../../config/index.js");
-      const groqApiKey = config.groq?.apiKey || process.env.GROQ_API_KEY;
+      const groqApiKeys: string[] = (config.groq as any)?.apiKeys?.length > 0
+        ? (config.groq as any).apiKeys
+        : Array.from(
+            new Set(
+              [
+                config.groq?.apiKey,
+                process.env.GROQ_API_KEY_1,
+                process.env.GROQ_API_KEY,
+                process.env.GROQ_API_KEY_2,
+                process.env.GROQ_API_KEY_3,
+                process.env.GROQ_API_KEY_4,
+                process.env.GROQ_API_KEY_5,
+                process.env.GROQ_API_KEY_SECONDARY,
+                ...(process.env.GROQ_API_KEYS ? process.env.GROQ_API_KEYS.split(",") : []),
+              ]
+                .map((k) => k?.trim())
+                .filter(Boolean) as string[],
+            ),
+          );
       const audioBuffer = Buffer.from(audioBase64, "base64");
 
-      // Option 1: Use Groq Whisper (Free tier, ultra-fast LPU inference)
-      if (groqApiKey) {
-        try {
-          logger.info("[AIEngine] Transcribing audio with Groq Whisper");
-          const OpenAI = (await import("openai")).default;
-          const groq = new OpenAI({
-            apiKey: groqApiKey,
-            baseURL: "https://api.groq.com/openai/v1",
-          });
+      // Option 1: Use Groq Whisper with multi-key failover (Free tier, ultra-fast LPU inference)
+      if (groqApiKeys.length > 0) {
+        for (let k = 0; k < groqApiKeys.length; k++) {
+          const currentKey = groqApiKeys[k];
+          const maskedKey = currentKey.length > 8 ? `${currentKey.slice(0, 4)}...${currentKey.slice(-4)}` : `key #${k + 1}`;
+          try {
+            logger.info(`[AIEngine] Transcribing audio with Groq Whisper (key ${k + 1}/${groqApiKeys.length}: ${maskedKey})`);
+            const OpenAI = (await import("openai")).default;
+            const groq = new OpenAI({
+              apiKey: currentKey,
+              baseURL: "https://api.groq.com/openai/v1",
+            });
 
-          const audioFile = new File([audioBuffer], "audio.webm", {
-            type: "audio/webm",
-          });
+            const audioFile = new File([audioBuffer], "audio.webm", {
+              type: "audio/webm",
+            });
 
-          const candidateGroqModels = Array.from(
-            new Set([
-              config.groq?.whisperModel,
-              "whisper-large-v3-turbo",
-              "whisper-large-v3",
-            ].filter(Boolean) as string[])
-          );
+            const candidateGroqModels = Array.from(
+              new Set([
+                config.groq?.whisperModel,
+                "whisper-large-v3-turbo",
+                "whisper-large-v3",
+              ].filter(Boolean) as string[])
+            );
 
-          for (const model of candidateGroqModels) {
-            try {
-              logger.info(`[AIEngine] Attempting Groq Whisper transcription with model: ${model}`);
-              const res = await groq.audio.transcriptions.create({
-                file: audioFile,
-                model,
-                language: "en",
-                response_format: "text",
-              });
-
-              const transcription = typeof res === "string" ? res.trim() : ((res as any)?.text || "").trim();
-              if (transcription) {
-                const processingTime = Date.now() - startTime;
-                logger.info("[AIEngine] Groq Whisper audio transcription completed", {
+            for (const model of candidateGroqModels) {
+              try {
+                logger.info(`[AIEngine] Attempting Groq Whisper transcription with model: ${model}`);
+                const res = await groq.audio.transcriptions.create({
+                  file: audioFile,
                   model,
-                  transcriptionLength: transcription.length,
-                  processingTimeMs: processingTime,
-                  preview: transcription.slice(0, 80),
+                  language: "en",
+                  response_format: "text",
                 });
-                return transcription;
+
+                const transcription = typeof res === "string" ? res.trim() : ((res as any)?.text || "").trim();
+                if (transcription) {
+                  const processingTime = Date.now() - startTime;
+                  logger.info("[AIEngine] Groq Whisper audio transcription completed", {
+                    key: maskedKey,
+                    model,
+                    transcriptionLength: transcription.length,
+                    processingTimeMs: processingTime,
+                    preview: transcription.slice(0, 80),
+                  });
+                  return transcription;
+                }
+              } catch (modelErr: any) {
+                logger.warn(`[AIEngine] Groq Whisper model ${model} failed on key ${maskedKey}: ${modelErr?.message || modelErr}`);
               }
-            } catch (modelErr: any) {
-              logger.warn(`[AIEngine] Groq Whisper model ${model} failed: ${modelErr?.message || modelErr}`);
             }
+          } catch (groqErr: any) {
+            logger.warn(`[AIEngine] Groq Whisper key ${maskedKey} failed, attempting next key if available: ${groqErr?.message || groqErr}`);
           }
-        } catch (groqErr: any) {
-          logger.warn("[AIEngine] Groq Whisper failed, trying fallbacks", { error: groqErr?.message });
         }
       }
 

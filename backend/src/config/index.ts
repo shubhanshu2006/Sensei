@@ -40,11 +40,20 @@ const envSchema = z.object({
   AWS_S3_BUCKET_NAME: z.string().min(1),
   AWS_REGION: z.string().default("ap-south-1"),
 
-  // AI (Groq & Gemini)
+  // AI (Groq Multi-Key Pool, Hugging Face Fallback & Gemini)
   GROQ_API_KEY: z.string().optional().default(""),
+  GROQ_API_KEY_1: z.string().optional().default(""),
+  GROQ_API_KEY_2: z.string().optional().default(""),
+  GROQ_API_KEY_3: z.string().optional().default(""),
+  GROQ_API_KEY_4: z.string().optional().default(""),
+  GROQ_API_KEY_5: z.string().optional().default(""),
+  GROQ_API_KEY_SECONDARY: z.string().optional().default(""),
+  GROQ_API_KEYS: z.string().optional().default(""),
   GROQ_PRIMARY_MODEL: z.string().default("openai/gpt-oss-120b"),
   GROQ_FAST_MODEL: z.string().default("openai/gpt-oss-20b"),
   GROQ_WHISPER_MODEL: z.string().default("whisper-large-v3-turbo"),
+  HF_TOKEN: z.string().optional().default(""),
+  HUGGINGFACE_API_KEY: z.string().optional().default(""),
   GOOGLE_API_KEY: z.string().optional().default(""),
   GEMINI_MODEL: z.string().default("gemini-3.8-flash"),
 
@@ -169,10 +178,39 @@ export const config = {
   },
 
   groq: {
-    apiKey: env.GROQ_API_KEY,
+    apiKey: env.GROQ_API_KEY || env.GROQ_API_KEY_1 || "",
+    secondaryApiKey: env.GROQ_API_KEY_2 || env.GROQ_API_KEY_SECONDARY || "",
+    apiKeys: Array.from(
+      new Set(
+        [
+          env.GROQ_API_KEY_1 || env.GROQ_API_KEY,
+          env.GROQ_API_KEY_2 || env.GROQ_API_KEY_SECONDARY,
+          env.GROQ_API_KEY_3,
+          env.GROQ_API_KEY_4,
+          env.GROQ_API_KEY_5,
+          ...(env.GROQ_API_KEYS ? env.GROQ_API_KEYS.split(",") : []),
+          // Automatically pick up any additional GROQ_API_KEY_* from process.env in numerical order
+          ...Object.keys(process.env)
+            .filter((k) => /^GROQ_API_KEY_\d+$/i.test(k))
+            .sort((a, b) => {
+              const numA = parseInt(a.replace(/\D/g, ""), 10) || 0;
+              const numB = parseInt(b.replace(/\D/g, ""), 10) || 0;
+              return numA - numB;
+            })
+            .map((k) => process.env[k]),
+        ]
+          .map((k) => k?.trim())
+          .filter(Boolean) as string[],
+      ),
+    ),
     primaryModel: env.GROQ_PRIMARY_MODEL,
     fastModel: env.GROQ_FAST_MODEL,
     whisperModel: env.GROQ_WHISPER_MODEL,
+  },
+
+  huggingface: {
+    apiKey: env.HF_TOKEN || env.HUGGINGFACE_API_KEY || "",
+    baseUrl: "https://router.huggingface.co/v1",
   },
 
   gemini: {
