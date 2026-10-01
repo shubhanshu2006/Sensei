@@ -74,6 +74,16 @@ router.patch(
   practiceController.toggleFeatured,
 );
 
+/**
+ * PATCH /practice/admin/:id/publish
+ * Toggle the isPublished flag on a practice job (Hide / Unhide).
+ */
+router.patch(
+  "/admin/:id/publish",
+  ...adminMiddleware,
+  practiceController.togglePublished,
+);
+
 // Candidate routes
 
 /**

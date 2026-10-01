@@ -146,6 +146,23 @@ export class PracticeController {
       res.status(200).json(new ApiResponse(200, job, message));
     },
   );
+
+  /**
+   * PATCH /practice/admin/:id/publish
+   * Toggles the isPublished flag on a practice job (admin only, Hide / Unhide).
+   */
+  togglePublished = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const id = req.params.id as string;
+      const job = await practiceService.togglePublished(id);
+
+      const message = job.isPublished
+        ? "Practice track published to candidate dashboard"
+        : "Practice track hidden from candidate dashboard";
+
+      res.status(200).json(new ApiResponse(200, job, message));
+    },
+  );
 }
 
 export const practiceController = new PracticeController();

@@ -121,7 +121,7 @@ class AdminController {
 
     const query: PracticeQuery = {
       page: Math.max(1, Number(q.page) || 1),
-      limit: Math.min(100, Math.max(1, Number(q.limit) || 20)),
+      limit: Math.min(200, Math.max(1, Number(q.limit) || 100)),
     };
 
     const result = await adminService.getPracticeJobs(query);
