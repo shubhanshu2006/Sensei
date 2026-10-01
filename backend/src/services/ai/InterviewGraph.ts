@@ -30,6 +30,76 @@ export interface InterviewState {
   shouldContinue: boolean;
 }
 
+export type AnswerQuality = 'strong' | 'adequate' | 'weak' | 'vague' | 'incorrect';
+
+// Max consecutive probing questions on the same topic before the interviewer moves on.
+export const MAX_CONSECUTIVE_FOLLOW_UPS = 2;
+
+export interface SingleQuestionInput {
+  candidateName?: string;
+  resumeText: string;
+  jobDescription: string;
+  jobTitle: string;
+  requiredSkills: string[];
+  category?: string;
+  questionIndex: number;
+  previousQuestions: string[];
+  conversationHistory?: string;
+  lastAnswer?: string;
+  lastAnswerQuality?: AnswerQuality;
+  lastAnswerTopic?: string;
+  weakTopics?: string[];
+  correctnessIssue?: string;
+  // What the evaluator thinks is missing/wrong in the last answer (drives the probe).
+  probeFocus?: string;
+  // Topics of fresh (non follow-up) questions already asked, used to rotate skills.
+  askedTopics?: string[];
+  // How many consecutive follow-ups were already asked on lastAnswerTopic.
+  consecutiveFollowUps?: number;
+}
+
+export interface SingleQuestionResult {
+  question: string;
+  topic: string;
+  isFollowUp: boolean;
+}
+
+export function normalizeInterviewCategory(
+  category?: string,
+  jobTitle?: string,
+): 'TECH' | 'SALES' | 'HR' | 'COMMUNICATION' {
+  const c = (category || '').toUpperCase();
+  if (c === 'SALES') return 'SALES';
+  if (c === 'HR') return 'HR';
+  if (c === 'COMMUNICATION') return 'COMMUNICATION';
+  if (
+    c === 'TECH' ||
+    c === 'FRONTEND' ||
+    c === 'BACKEND' ||
+    c === 'FULLSTACK' ||
+    c === 'DEVOPS' ||
+    c === 'MOBILE' ||
+    c === 'DATA_SCIENCE' ||
+    c === 'MACHINE_LEARNING' ||
+    c === 'SYSTEM_DESIGN'
+  ) {
+    return 'TECH';
+  }
+
+  const title = (jobTitle || '').toLowerCase();
+  if (title.includes('sales') || title.includes('bdr') || title.includes('sdr') || title.includes('account executive') || title.includes('revenue')) {
+    return 'SALES';
+  }
+  if (title.includes('hr') || title.includes('human resources') || title.includes('people ops') || title.includes('recruiter') || title.includes('talent')) {
+    return 'HR';
+  }
+  if (title.includes('communication') || title.includes('storytelling') || title.includes('presentation') || title.includes('conflict')) {
+    return 'COMMUNICATION';
+  }
+
+  return 'TECH';
+}
+
 export class InterviewGraph {
   private graph: StateGraph<InterviewState>;
 
@@ -70,7 +140,7 @@ export class InterviewGraph {
       const topic = uncoveredSkills[0] || state.requiredSkills[0] || 'general';
 
       // Generate question using LLM
-      const prompt = `You are conducting a technical interview for the position of {jobTitle}.
+      const prompt = `You are conducting an interview for the position of {jobTitle}.
 
 Job Description:
 {jobDescription}
@@ -81,26 +151,31 @@ Candidate Resume Summary:
 Questions Asked So Far:
 {previousQuestions}
 
+CRITICAL ANTI-HALLUCINATION RULES:
+- Ground the question strictly in the Job Description requirements and the Candidate Resume Summary.
+- NEVER fabricate, invent, or assume any past company, project, certification, or domain (e.g. cybersecurity, tech fest, etc.) not explicitly written in Candidate Resume Summary.
+- If the resume does not mention specific past details for {topic}, ask a direct question grounded in the Job Description without making claims about their past experience.
+
 Generate the next interview question focusing on: {topic}
 
 The question should:
-- Be open-ended and behavioral/technical
-- Match the candidate's experience level
+- Be open-ended and relevant to {jobTitle}
 - Allow them to demonstrate practical knowledge
 - Take 2-3 minutes to answer
+- Formulate a complete, well-structured question with proper punctuation
 
-Return only the question text, no preamble.`;
+Return only the complete question text, no preamble.`;
 
       const question = await llmClient.generateText(
         prompt,
         {
           jobTitle: state.jobTitle,
           jobDescription: state.jobDescription.substring(0, 1000),
-          resumeText: state.resumeText.substring(0, 1500),
+          resumeText: state.resumeText.substring(0, 4000),
           topic,
           previousQuestions: state.questionsAsked.map((q) => `- ${q.question}`).join('\n'),
         },
-        { temperature: 0.8, maxTokens: 300 },
+        { temperature: 0.25, maxTokens: 2048 },
       );
 
       return {
@@ -235,55 +310,369 @@ Return JSON: { "clarity": X, "depth": X, "relevance": X, "feedback": "brief comm
     return questions;
   }
 
+  // -------------------------------------------------------------------------
   // generateSingleQuestion
   // Generates one question at a time (for real-time WebSocket flow).
+  // Follows up adaptively on candidate's previous answers just like a real human interviewer.
+  // -------------------------------------------------------------------------
 
-  async generateSingleQuestion(input: {
-    resumeText: string;
-    jobDescription: string;
-    jobTitle: string;
-    requiredSkills: string[];
-    questionIndex: number;
-    previousQuestions: string[];
-  }): Promise<string> {
+  async generateSingleQuestion(input: SingleQuestionInput): Promise<string> {
+    const result = await this.generateSingleQuestionDetailed(input);
+    return result.question;
+  }
+
+  // Same as generateSingleQuestion but also reports which topic the question targets
+  // and whether it is a cross-question, so callers can persist it for later turns.
+  async generateSingleQuestionDetailed(input: SingleQuestionInput): Promise<SingleQuestionResult> {
+    const track = normalizeInterviewCategory(input.category, input.jobTitle);
+
     logger.info('[InterviewGraph] Generating single question', {
       index: input.questionIndex,
+      candidateName: input.candidateName,
+      track,
+      hasLastAnswer: !!input.lastAnswer,
     });
 
-    const prompt = `You are conducting a technical interview for {jobTitle}.
+    const candidateName = input.candidateName?.trim() || 'candidate';
+    const isFirstQuestion = input.questionIndex === 0;
 
-Job Description:
+    // Adaptive topic selection: cover every required skill once (follow-ups don't consume a
+    // skill), then cycle; revisit weak areas instead of blindly round-robin cycling.
+    const skills = input.requiredSkills || [];
+    const askedLower = new Set((input.askedTopics || []).map((t) => t.toLowerCase()));
+    const nextUncoveredSkill = skills.find((s) => !askedLower.has(s.toLowerCase()));
+    const defaultSkill =
+      nextUncoveredSkill ||
+      skills[(input.askedTopics?.length ?? input.questionIndex) % Math.max(1, skills.length)] ||
+      (track === 'SALES' ? 'objection handling' : track === 'HR' ? 'conflict resolution' : track === 'COMMUNICATION' ? 'clarity and brevity' : 'problem solving');
+
+    const answerNeedsProbing =
+      input.lastAnswerQuality === 'weak' ||
+      input.lastAnswerQuality === 'vague' ||
+      input.lastAnswerQuality === 'incorrect';
+    const followUpsSoFar = input.consecutiveFollowUps ?? 0;
+    const capReached = followUpsSoFar >= MAX_CONSECUTIVE_FOLLOW_UPS;
+    const isCrossQuestion =
+      answerNeedsProbing && !!input.lastAnswerTopic && !isFirstQuestion && !capReached;
+
+    let targetSkill: string;
+    if (isCrossQuestion) {
+      // Stay on same topic for cross-questioning when answer was weak/vague/incorrect
+      targetSkill = input.lastAnswerTopic!;
+      logger.info('[InterviewGraph] Cross-questioning: revisiting topic due to weak answer', {
+        topic: targetSkill,
+        quality: input.lastAnswerQuality,
+      });
+    } else if (
+      input.weakTopics &&
+      input.weakTopics.length > 0 &&
+      input.questionIndex > 2 &&
+      input.questionIndex % 3 === 0
+    ) {
+      // Every 3rd question after Q2, revisit an unresolved weak topic
+      targetSkill = input.weakTopics[input.weakTopics.length - 1];
+      logger.info('[InterviewGraph] Adaptive revisit: probing weak topic', { topic: targetSkill });
+    } else {
+      targetSkill = defaultSkill;
+    }
+
+    let prompt: string;
+    let variables: Record<string, any>;
+
+    if (track === 'SALES') {
+      if (isFirstQuestion) {
+        prompt = `You are an experienced Sales Director and Enterprise Buyer conducting a mock sales interview with candidate {candidateName} for the position of {jobTitle}.
+
+Role & Sales Context (Job Description):
 {jobDescription}
 
-Candidate Resume:
+Target Assessment Competency:
+{targetSkill}
+
+Candidate Resume Background:
 {resumeText}
 
-Previous Questions:
-{previousQuestions}
+Candidate Name:
+{candidateName}
 
-Generate question #{questionNumber} focusing on: {skill}
+CORE DIRECTIVE — COMBINE RESUME & JOB DESCRIPTION:
+- Warmly welcome {candidateName} to the interview for the {jobTitle} role.
+- Connect a concrete past sales experience, deal size, or sector mentioned in their resume directly to the core commercial objectives outlined in the Job Description for {targetSkill}.
+- If their resume does not list specific sales accounts, launch directly into an authentic sales discovery or pitch scenario based on the Job Description's customer persona.
+- Keep the tone professional, sharp, and conversational (2-3 sentences).
+- Return ONLY the exact words spoken by the interviewer. Never include prefixes like "Interviewer:" or quotation marks.`;
+      } else {
+        prompt = `You are a sharp, demanding Enterprise Decision-Maker / VP of Sales interviewing candidate {candidateName} for the {jobTitle} role.
 
-Requirements:
-- Open-ended and behavioral/technical
-- Should take 2-3 minutes to answer
-- Match candidate's experience level
+Target Role & Commercial Requirements (Job Description):
+{jobDescription}
 
-Return only the question text.`;
+Candidate Resume Background:
+{resumeText}
 
-    const question = await llmClient.generateText(
-      prompt,
-      {
-        jobTitle: input.jobTitle,
-        jobDescription: input.jobDescription.substring(0, 1000),
-        resumeText: input.resumeText.substring(0, 1500),
-        previousQuestions: input.previousQuestions.join('\n'),
-        questionNumber: input.questionIndex + 1,
-        skill: input.requiredSkills[input.questionIndex % input.requiredSkills.length] || 'general',
-      },
-      { temperature: 0.8, maxTokens: 300 },
-    );
+Candidate Name:
+{candidateName}
 
-    return question.trim();
+Interview Conversation History:
+{conversationHistory}
+
+Candidate's Most Recent Answer:
+"{lastAnswer}"
+
+Target Sales Competency to Evaluate:
+{targetSkill}
+
+CORE DIRECTIVE — COMBINE ALL THREE PILLARS:
+You must synthesize all three sources:
+1. THE CANDIDATE'S LAST ANSWER ("{lastAnswer}"):
+   - Scrutinize what {candidateName} just claimed or pitched. Challenge their specific assumptions, deal strategy, or handling of objections.
+2. THE JOB DESCRIPTION REQUIREMENTS ({jobTitle}):
+   - Connect the follow-up directly to the buyer persona, deal size, sales cycle, and revenue targets required in the Job Description for {targetSkill}.
+3. THE CANDIDATE'S RESUME BACKGROUND:
+   - When applicable, cross-reference their declared past sales achievements, target industries, or methodologies from their resume to compare how they'd execute this in practice.
+
+CRITICAL RULES:
+- ZERO HALLUCINATION: Never invent quotas or clients not written in "Candidate Resume Background".
+- Speak naturally like a skeptical commercial buyer or sales leader (2 to 3 concise sentences).
+- End with one clear prompt, pushback, or objection testing {targetSkill}.
+- Return ONLY the exact spoken words. Never include "Interviewer:" or quotation marks.`;
+      }
+    } else if (track === 'HR') {
+      if (isFirstQuestion) {
+        prompt = `You are a Chief People Officer and Senior HR Director conducting a behavioral and people operations interview with candidate {candidateName} for the position of {jobTitle}.
+
+Role & Context (Job Description):
+{jobDescription}
+
+Target Assessment Competency:
+{targetSkill}
+
+Candidate Resume Background:
+{resumeText}
+
+Candidate Name:
+{candidateName}
+
+CORE DIRECTIVE — COMBINE RESUME & JOB DESCRIPTION:
+- Warmly welcome {candidateName} to the interview for the {jobTitle} role.
+- If their resume highlights specific people programs, recruiting, or workplace initiatives, connect that background to the organizational goals in the Job Description for {targetSkill}.
+- Otherwise, introduce an authentic workplace dilemma directly grounded in the Job Description.
+- Keep the tone thoughtful, professional, and empathetic yet rigorous (2-3 sentences).
+- Return ONLY the exact words spoken by the interviewer. Never include prefixes like "Interviewer:" or quotation marks.`;
+      } else {
+        prompt = `You are an experienced Chief People Officer / Senior HR Panel conducting an in-depth behavioral and people strategy interview with candidate {candidateName} for the position of {jobTitle}.
+
+Target Role Context (Job Description):
+{jobDescription}
+
+Candidate Resume Background:
+{resumeText}
+
+Candidate Name:
+{candidateName}
+
+Interview Conversation History:
+{conversationHistory}
+
+Candidate's Most Recent Answer:
+"{lastAnswer}"
+
+Target HR Competency to Evaluate:
+{targetSkill}
+
+CORE DIRECTIVE — COMBINE ALL THREE PILLARS:
+You must synthesize all three sources:
+1. THE CANDIDATE'S LAST ANSWER ("{lastAnswer}"):
+   - Probe the specific reasoning, trade-offs, or procedural actions they articulated in "{lastAnswer}". Challenge generic or idealized solutions.
+2. THE JOB DESCRIPTION REQUIREMENTS ({jobTitle}):
+   - Tie the question to the organizational culture, team scale, retention priorities, or conflict dynamics demanded by the Job Description for {targetSkill}.
+3. THE CANDIDATE'S RESUME BACKGROUND:
+   - Relate the scenario to their past workplace context, team sizes, or leadership scope documented in their resume.
+
+CRITICAL RULES:
+- ZERO HALLUCINATION: Never invent past companies or incidents not in "Candidate Resume Background".
+- Speak thoughtfully, directly, and realistically (2 to 3 concise sentences).
+- End with one clear, challenging follow-up question.
+- Return ONLY the exact spoken words. Never include "Interviewer:" or quotation marks.`;
+      }
+    } else if (track === 'COMMUNICATION') {
+      if (isFirstQuestion) {
+        prompt = `You are an Executive Communications Coach and Senior Bar-Raiser conducting a communication interview with candidate {candidateName} for {jobTitle}.
+
+Role & Communication Objectives (Job Description):
+{jobDescription}
+
+Target Communication Dimension:
+{targetSkill}
+
+Candidate Resume Background:
+{resumeText}
+
+Candidate Name:
+{candidateName}
+
+CORE DIRECTIVE — COMBINE RESUME & JOB DESCRIPTION:
+- Warmly welcome {candidateName} to the session for the {jobTitle} role.
+- Bridge a communication or leadership dimension from their resume with the stakeholder expectations defined in the Job Description for {targetSkill}.
+- Keep the tone polished, direct, and clear (2-3 sentences).
+- Return ONLY the exact words spoken by the interviewer. Never include prefixes or quotes.`;
+      } else {
+        prompt = `You are an Executive Communications Coach and Senior Bar-Raiser evaluating candidate {candidateName} for {jobTitle}.
+
+Context & Objectives (Job Description):
+{jobDescription}
+
+Candidate Resume Background:
+{resumeText}
+
+Candidate Name:
+{candidateName}
+
+Interview Conversation History:
+{conversationHistory}
+
+Candidate's Most Recent Answer:
+"{lastAnswer}"
+
+Target Communication Dimension to Evaluate:
+{targetSkill}
+
+CORE DIRECTIVE — COMBINE ALL THREE PILLARS:
+You must synthesize all three sources:
+1. THE CANDIDATE'S LAST ANSWER ("{lastAnswer}"):
+   - Actively evaluate their structure, brevity, and persuasiveness in "{lastAnswer}".
+2. THE JOB DESCRIPTION REQUIREMENTS ({jobTitle}):
+   - Frame the scenario around the audience level (e.g. C-suite, engineering teams, cross-functional partners) mandated by the Job Description.
+3. THE CANDIDATE'S RESUME BACKGROUND:
+   - Challenge them using a concrete project or initiative from their resume as the subject matter for this communication challenge.
+
+CRITICAL RULES:
+- ZERO HALLUCINATION: Rely strictly on verified facts in "Candidate Resume Background".
+- Speak with executive clarity and poise (2 to 3 concise sentences).
+- End with one clear, targeted communication scenario.
+- Return ONLY the exact spoken words. Never include "Interviewer:" or quotation marks.`;
+      }
+    } else {
+      // TECH TRACK (Default)
+      if (isFirstQuestion) {
+        prompt = `You are an expert, engaging, and professional technical interviewer conducting a live technical interview with candidate {candidateName} for the position of {jobTitle}.
+
+Role & Job Description:
+{jobDescription}
+
+Target Assessment Topic / Competency:
+{targetSkill}
+
+Candidate Resume Details:
+{resumeText}
+
+Candidate Name:
+{candidateName}
+
+CORE DIRECTIVE — COMBINE RESUME & JOB DESCRIPTION:
+- Formulate an opening question that connects the candidate's verified background and tech stack from their resume with the core requirements and architectural challenges of the {jobTitle} Job Description.
+- If their resume mentions relevant projects, libraries, databases, or frameworks related to {targetSkill}, reference it directly to break the ice and bridge into the role's technical needs (e.g., "I see from your background that you've worked with [Tool/Project]. For our {jobTitle} role, we require [JD requirement]. To start, how would you design...?").
+- If their resume doesn't mention an exact match for {targetSkill}, anchor the question in the Job Description's key architectural requirements for {jobTitle}.
+
+CRITICAL ANTI-HALLUCINATION RULES:
+- NEVER invent, assume, or hallucinate any prior company, project, technology, or domain not explicitly written in Candidate Resume Details.
+- Warmly welcome {candidateName} to the interview for the {jobTitle} role.
+- Keep the tone professional, natural, and conversational (2-3 sentences).
+- Return ONLY the exact words spoken by the interviewer. Do NOT include prefixes like "Interviewer:" or quotation marks.`;
+      } else {
+        prompt = `You are a discerning, sharp, and highly experienced Senior Engineering Lead / Bar-Raiser conducting a rigorous technical interview with candidate {candidateName} for the position of {jobTitle}.
+
+Target Role & Job Description Requirements:
+{jobDescription}
+
+Candidate Resume Background:
+{resumeText}
+
+Candidate Name:
+{candidateName}
+
+Interview Conversation History:
+{conversationHistory}
+
+Candidate's Most Recent Answer:
+"{lastAnswer}"
+
+Target Technical Topic / Skill to Evaluate:
+{targetSkill}
+
+CORE DIRECTIVE — COMBINE ALL THREE PILLARS (MANDATORY):
+You MUST synthesize all three dimensions into your question:
+1. CANDIDATE'S PREVIOUS ANSWER ("{lastAnswer}"):
+   - Scrutinize the specific solution, libraries, or architecture they just described.
+   - Point out what they explained, identify what was vague, and challenge unaddressed edge cases or failure modes (e.g., race conditions, database connection pool exhaustion, missing indexes, network timeouts, cache invalidation, or error handling).
+2. JOB DESCRIPTION EXPECTATIONS ({jobTitle}):
+   - Ground the problem in the actual production scale, reliability, and engineering standards specified in the Job Description for {targetSkill}.
+3. CANDIDATE'S RESUME BACKGROUND:
+   - Cross-reference their declared past projects, databases, frameworks, or architectural experience from their resume to anchor the scenario in their practical experience (e.g., comparing their proposed approach to technologies they've worked with).
+   - If the resume does not specify a related past project for this topic, ground the scenario firmly in the Job Description's engineering standards.
+
+CRITICAL RULES:
+- ZERO HALLUCINATION (STRICT): Never claim the candidate worked at a company or used a tool not explicitly present in "Candidate Resume Background".
+- NO HOLLOW PRAISE: Do not start with generic compliments ("Great answer!", "Awesome explanation"). Jump directly into the technical examination like a senior engineer.
+- FIRM DEFLECTION: If {candidateName}'s response asks off-topic questions, redirect them firmly to the technical assessment.
+- STYLE & LENGTH: Speak naturally like a senior human engineer (2 to 3 concise, direct sentences).
+- End with exactly ONE clear, targeted question demanding concrete technical depth.
+- Return ONLY the exact words spoken by the interviewer. Never include prefixes like "Interviewer:", "AI:", or quotation marks.`;
+      }
+    }
+
+    // Inject cross-questioning directive when the previous answer needs probing
+    const probeHint = input.probeFocus
+      ? `\n- The evaluator's note on what is missing or wrong in the answer: "${input.probeFocus}". Aim your question at exactly that gap.`
+      : '';
+
+    if (isCrossQuestion && (input.lastAnswerQuality === 'weak' || input.lastAnswerQuality === 'vague')) {
+      prompt += `\n\nCROSS-QUESTIONING DIRECTIVE (ACTIVE):
+The candidate's previous response was assessed as ${input.lastAnswerQuality}. You MUST:
+- Do NOT move on to a new topic. Probe deeper on the SAME area: ${targetSkill}.
+- Quote or paraphrase the specific vague/shallow part of their last answer, then challenge it.
+- Ask for a concrete example, metric, or specific technical detail they personally handled.
+- If they were vague, ask a more targeted, narrower question that demands a precise answer.
+- If they openly said they don't know or haven't done this, do NOT keep pushing the same point: acknowledge it in one short phrase and ask a simpler foundational or adjacent question instead.
+- Maintain a firm but professional tone — do not accept surface-level responses.${probeHint}`;
+    } else if (isCrossQuestion && input.lastAnswerQuality === 'incorrect') {
+      const claim = input.correctnessIssue
+        ? `something technically incorrect: "${input.correctnessIssue}"`
+        : 'a claim that appears technically incorrect or contradicts established practice';
+      prompt += `\n\nCROSS-QUESTIONING DIRECTIVE (FACTUAL INACCURACY DETECTED):
+The candidate confidently stated ${claim}. You MUST:
+- Politely but firmly challenge the specific incorrect claim WITHOUT revealing the correct answer.
+- Ask them to reconsider, explain their reasoning, or walk through why they believe that.
+- If they self-correct, acknowledge it briefly and probe deeper on ${targetSkill}.
+- If they double down on the error, note it and pivot to a related scenario that exposes the knowledge gap.
+- Do NOT be condescending — frame it as genuinely exploring their thought process.${probeHint}`;
+    } else if (!isFirstQuestion && answerNeedsProbing && capReached) {
+      prompt += `\n\nTRANSITION DIRECTIVE:
+You have already probed the previous topic ${followUpsSoFar} times and the candidate is still struggling. Like a real interviewer, close that thread gracefully with a few neutral words (no praise, no hints) and move on to a DIFFERENT competency: ${targetSkill}.`;
+    }
+
+    variables = {
+      candidateName,
+      jobTitle: input.jobTitle,
+      jobDescription: input.jobDescription.substring(0, 12000),
+      requiredSkills: input.requiredSkills.slice(0, 15).join(', '),
+      resumeText: input.resumeText.substring(0, 12000),
+      conversationHistory: input.conversationHistory || '',
+      lastAnswer: input.lastAnswer || '',
+      targetSkill,
+    };
+
+    // Use low temperature (0.25) to prevent hallucinations and enforce strict adherence to facts and candidate answers
+    const question = await llmClient.generateText(prompt, variables, {
+      temperature: 0.25,
+      maxTokens: 2048,
+    });
+
+    return {
+      question: question.trim().replace(/^["']|["']$/g, ''),
+      topic: targetSkill,
+      isFollowUp: isCrossQuestion,
+    };
   }
 }
 
