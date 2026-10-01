@@ -141,8 +141,9 @@ export class JobController {
   getPublicJobs = asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
       const query = req.query as unknown as JobQueryInput;
+      const isAdmin = req.user?.role === "PLATFORM_ADMIN";
 
-      const result = await jobService.getPublicJobs(query);
+      const result = await jobService.getPublicJobs(query, isAdmin);
 
       res
         .status(200)

@@ -6,7 +6,8 @@ import {
 } from "../middleware/auth.middleware.js";
 import {
   requireRole,
-  requireRecruiterProfile,
+  requireRecruiterOrAdminProfile,
+  requireCandidateProfile,
 } from "../middleware/authorization.middleware.js";
 import {
   validateBody,
@@ -14,21 +15,33 @@ import {
   validateParams,
 } from "../middleware/validation.middleware.js";
 import { jobController } from "../controllers/jobs.controller.js";
+import { applicationController } from "../controllers/applications.controller.js";
 import {
   createJobSchema,
   updateJobSchema,
   jobStatusSchema,
   jobQuerySchema,
 } from "../validations/jobs.validation.js";
+import {
+  applyForJobSchema,
+  recruiterApplicationQuerySchema,
+  updateApplicationStatusSchema,
+} from "../validations/applications.validation.js";
 
 const router = Router();
 
-// Common middleware stack for recruiter-protected routes.
+// Common middleware stacks
 
 const recruiterAuth = [
   authenticateUser,
-  requireRole("RECRUITER"),
-  requireRecruiterProfile,
+  requireRole("RECRUITER", "PLATFORM_ADMIN"),
+  requireRecruiterOrAdminProfile,
+] as const;
+
+const candidateAuth = [
+  authenticateUser,
+  requireRole("CANDIDATE"),
+  requireCandidateProfile,
 ] as const;
 
 // PUBLIC / optional-auth routes
@@ -108,6 +121,49 @@ router.patch(
   ...recruiterAuth,
   validateBody(jobStatusSchema),
   jobController.updateJobStatus,
+);
+
+/**
+ * POST /jobs/:jobId/apply
+ * Candidate submits application for an active job.
+ */
+router.post(
+  "/:jobId/apply",
+  ...candidateAuth,
+  validateBody(applyForJobSchema),
+  applicationController.applyForJob,
+);
+
+/**
+ * GET /jobs/:jobId/applications
+ * Recruiter lists paginated applications for their job.
+ */
+router.get(
+  "/:jobId/applications",
+  ...recruiterAuth,
+  validateQuery(recruiterApplicationQuerySchema),
+  applicationController.getJobApplications,
+);
+
+/**
+ * GET /jobs/:jobId/applications/:applicationId
+ * Recruiter gets full application detail.
+ */
+router.get(
+  "/:jobId/applications/:applicationId",
+  ...recruiterAuth,
+  applicationController.getApplicationDetail,
+);
+
+/**
+ * PATCH /jobs/:jobId/applications/:applicationId/status
+ * Recruiter updates application status (SHORTLISTED, REJECTED, INTERVIEW_INVITED).
+ */
+router.patch(
+  "/:jobId/applications/:applicationId/status",
+  ...recruiterAuth,
+  validateBody(updateApplicationStatusSchema),
+  applicationController.updateApplicationStatus,
 );
 
 // PUBLIC parameterised route — must be LAST to avoid swallowing /my and /manage

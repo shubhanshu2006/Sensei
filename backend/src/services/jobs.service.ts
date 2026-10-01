@@ -117,8 +117,8 @@ export class JobService {
         screeningConfig: data.screeningConfig as any,
         screeningMode: data.screeningMode ?? "ASSISTED",
         autoInviteThreshold: data.autoInviteThreshold ?? 80,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        status: "DRAFT" as any,
+        status: ((data as any).status === "ACTIVE" ? "ACTIVE" : "DRAFT") as any,
+        publishedAt: (data as any).status === "ACTIVE" ? new Date() : null,
       },
     });
 
@@ -313,13 +313,19 @@ export class JobService {
   // Returns ACTIVE jobs for candidate browsing. Sensitive recruiter data
   // (like draft configs) is excluded via select projection.
 
-  async getPublicJobs(query: JobQuery): Promise<PaginatedResult<unknown>> {
-    const { page, limit, experienceLevel, search } = query;
+  async getPublicJobs(
+    query: JobQuery,
+    isAdmin = false,
+  ): Promise<PaginatedResult<unknown>> {
+    const { page, limit, status, experienceLevel, search } = query;
     const skip = (page - 1) * limit;
 
-    // Public listing always filters to ACTIVE jobs only.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: Record<string, any> = { status: "ACTIVE" as any };
+    const where: Record<string, any> = {};
+    if (isAdmin) {
+      if (status) where.status = status as any;
+    } else {
+      where.status = "ACTIVE" as any;
+    }
     if (experienceLevel) where.experienceLevel = experienceLevel;
     if (search) {
       where.title = { contains: search, mode: "insensitive" };
