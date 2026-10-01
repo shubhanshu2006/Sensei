@@ -241,17 +241,19 @@ export class PracticeService {
   async startPracticeInterview(
     candidateProfileId: string,
     practiceJobId: string,
-    resumeUrlOverride?: string,
+    resumeUrlOverride?: string | null,
   ) {
     // 1. Practice job must exist and be published
     const practiceJob = await prisma.practiceJob.findUnique({
       where: { id: practiceJobId },
-      select: { id: true, title: true, description: true, isPublished: true },
+      select: { id: true, title: true, description: true, category: true, isPublished: true },
     });
 
     if (!practiceJob || !practiceJob.isPublished) {
       throw new ApiError(404, "Practice job not found");
     }
+
+    const isNonTechnical = ["SALES", "HR", "COMMUNICATION"].includes(practiceJob.category as string);
 
     // 2. Candidate profile must exist and have resume
     const candidate = await prisma.candidateProfile.findUnique({
@@ -281,12 +283,17 @@ export class PracticeService {
     }
 
     // Resolve resume URL (with admin fallback for immediate testing)
-    const sessionResumeUrl = resumeUrlOverride ?? candidate.resumeUrl ?? (isAdmin ? "https://sensei.ai/sample-resume.pdf" : undefined);
+    const rawResumeUrl = resumeUrlOverride && resumeUrlOverride.trim().length > 0 ? resumeUrlOverride.trim() : candidate.resumeUrl;
+    let sessionResumeUrl = rawResumeUrl ?? (isAdmin ? "https://sensei.ai/sample-resume.pdf" : undefined);
     if (!sessionResumeUrl) {
-      throw new ApiError(
-        400,
-        "A resume is required to start a practice interview. Please upload your resume first.",
-      );
+      if (!isNonTechnical) {
+        throw new ApiError(
+          400,
+          "A resume is required to start a technical practice interview. Please upload your resume first.",
+        );
+      }
+      // For non-tech interviews (Sales, HR, Communication), resume upload is optional
+      sessionResumeUrl = "";
     }
 
     // 3. Atomically deduct credit (candidates only) and create session in a transaction
@@ -320,7 +327,7 @@ export class PracticeService {
             practiceJobId,
             status: "SCHEDULED",
             sessionToken: generateSessionToken(),
-            resumeUrl: sessionResumeUrl,
+            resumeUrl: sessionResumeUrl || "",
             jobDescription: practiceJob.description,
             scheduledAt: new Date(),
           },

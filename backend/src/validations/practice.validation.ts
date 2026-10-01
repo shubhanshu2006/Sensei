@@ -123,9 +123,14 @@ export type PracticeQuery = z.infer<typeof practiceQuerySchema>;
 export const startPracticeInterviewSchema = z.object({
   /**
    * Optional: client may supply a specific resume URL to use for this session.
-   * Falls back to the candidate's stored profile resume when omitted.
+   * Optional for non-tech interviews. Falls back to candidate profile resume or empty string.
    */
-  resumeUrl: z.string().url("resumeUrl must be a valid URL").optional(),
+  resumeUrl: z
+    .string()
+    .url("resumeUrl must be a valid URL")
+    .optional()
+    .or(z.literal(""))
+    .nullable(),
 });
 
 export type StartPracticeInterviewDTO = z.infer<
