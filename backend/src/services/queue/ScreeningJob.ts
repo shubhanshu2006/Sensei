@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from "bullmq";
-import { connection } from "./index.js";
+import { connection } from "./connection.js";
 import { prisma } from "../../database/client.js";
 import { aiEngine } from "../ai/AIEngine.js";
 import { logger } from "../../utils/logger.js";

@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from "bullmq";
-import { connection } from "./index.js";
+import { connection } from "./connection.js";
 import { emailService } from "../email/EmailService.js";
 import { logger } from "../../utils/logger.js";
 
@@ -18,6 +18,7 @@ import { logger } from "../../utils/logger.js";
 // Retry: 3 attempts
 
 export type EmailJobType =
+  | "welcome"
   | "interview-invitation"
   | "interview-completed"
   | "payment-confirmation"
@@ -61,6 +62,14 @@ export const emailWorker = new Worker<EmailJobData>(
 
     try {
       switch (type) {
+        case "welcome":
+          await emailService.sendWelcomeEmail({
+            userEmail: data.userEmail || data.candidateEmail || data.email,
+            userName: data.userName || data.candidateName || data.name,
+            dashboardLink: data.dashboardLink,
+          });
+          break;
+
         case "interview-invitation":
           await emailService.sendInterviewInvitation({
             candidateEmail: data.candidateEmail,

@@ -1,7 +1,8 @@
 import { Queue, Worker, Job } from "bullmq";
-import { connection } from "./index.js";
+import { connection } from "./connection.js";
 import { prisma } from "../../database/client.js";
 import { aiEngine } from "../ai/AIEngine.js";
+import { getDimensionTitles } from "../ai/EvaluationService.js";
 import { logger } from "../../utils/logger.js";
 
 // ---------------------------------------------------------------------------
@@ -46,164 +47,370 @@ export const interviewEvaluationQueue = new Queue("interview-evaluation", {
   },
 });
 
-export const interviewEvaluationWorker = new Worker<InterviewEvaluationJobData>(
-  "interview-evaluation",
-  async (job: Job<InterviewEvaluationJobData>) => {
-    const { sessionId, candidateId, jobTitle, requiredSkills } = job.data;
+const inFlightEvaluations = new Map<string, Promise<any>>();
 
-    logger.info("[InterviewEvaluationJob] Starting evaluation", {
-      jobId: job.id,
-      sessionId,
-    });
+export async function executeInterviewEvaluation(sessionId: string): Promise<any> {
+  if (inFlightEvaluations.has(sessionId)) {
+    return inFlightEvaluations.get(sessionId);
+  }
 
-    try {
-      // Step 1: Fetch interview session with Q&A transcript
-      const session = await prisma.interviewSession.findUnique({
-        where: { id: sessionId },
-        include: {
-          transcript: true,
-          application: {
-            include: {
-              job: {
-                select: {
-                  title: true,
-                  requiredSkills: true,
-                  description: true,
-                },
+  const promise = (async () => {
+    logger.info("[InterviewEvaluationJob] Starting evaluation execution", { sessionId });
+
+    // Step 1: Fetch session
+    const session = await prisma.interviewSession.findFirst({
+      where: {
+        OR: [{ id: sessionId }, { sessionToken: sessionId }],
+      },
+      include: {
+        transcript: true,
+        scorecard: true,
+        candidate: {
+          include: {
+            user: true,
+          },
+        },
+        application: {
+          include: {
+            candidate: {
+              include: {
+                user: true,
+              },
+            },
+            job: {
+              select: {
+                title: true,
+                requiredSkills: true,
+                description: true,
               },
             },
           },
-          practiceJob: {
-            select: {
-              title: true,
-              requiredSkills: true,
-              description: true,
-            },
+        },
+        practiceJob: {
+          select: {
+            title: true,
+            requiredSkills: true,
+            description: true,
+            category: true,
           },
         },
+      },
+    });
+
+    if (!session) {
+      throw new Error(`Interview session ${sessionId} not found`);
+    }
+
+    if (session.scorecard) {
+      return session.scorecard;
+    }
+
+    const realSessionId = session.id;
+
+    // Determine job context
+    const jobContext = session.application?.job || session.practiceJob || {
+      title: "Technical Interview Practice",
+      description: "Comprehensive software engineering assessment",
+      requiredSkills: ["Problem Solving", "System Design", "Communication"],
+    };
+
+    const jobCategory = (session.practiceJob as any)?.category || (session.application?.job as any)?.category;
+
+    // Extract resume text if available
+    const targetResumeUrl =
+      session.resumeUrl ||
+      session.candidate?.resumeUrl ||
+      session.application?.candidate?.resumeUrl ||
+      session.application?.resumeUrl;
+
+    let resumeText = "";
+    if (targetResumeUrl) {
+      try {
+        const { resumeParser } = await import("../ai/ResumeParser.js");
+        resumeText = await resumeParser.getResumeText(targetResumeUrl);
+      } catch (err: any) {
+        logger.warn("[InterviewEvaluationJob] Could not parse resume text:", err?.message || err);
+      }
+    }
+
+    if (!resumeText) {
+      resumeText = `Candidate applying for ${jobContext.title}. Required skills: ${((jobContext.requiredSkills as string[]) || []).join(", ")}`;
+    }
+
+    const allQaData = (session.transcript?.qaData as any[]) || [];
+
+    // A question that was shown but never answered (candidate ended early) must not be
+    // scored as a non-answer. A submitted answer is marked `answered` (or, in older sessions,
+    // carries `isVoiceMode`); trailing entries without either were never answered.
+    const wasSubmitted = (qa: any) =>
+      qa.answered === true ||
+      qa.isVoiceMode !== undefined ||
+      (typeof qa.answer === "string" && qa.answer.trim().length > 0);
+    let lastSubmittedEnd = allQaData.length;
+    while (lastSubmittedEnd > 0 && !wasSubmitted(allQaData[lastSubmittedEnd - 1])) {
+      lastSubmittedEnd--;
+    }
+    const qaData = allQaData.slice(0, lastSubmittedEnd);
+
+    const validAnswers = qaData.filter((qa: any) => {
+      const ans = (qa.answer || "").trim();
+      return (
+        ans.length > 5 &&
+        !ans.includes("[No verbal response recorded]") &&
+        !ans.toLowerCase().includes("no verbal response") &&
+        !ans.toLowerCase().includes("no response recorded")
+      );
+    });
+
+    const hasNoAnswers = validAnswers.length === 0;
+
+    // Coverage: which required skills did no (validly answered) question actually test?
+    // Only computed when questions carry a topic (older sessions don't).
+    const requiredSkillsForCoverage = ((jobContext.requiredSkills as string[]) || []).filter(Boolean);
+    const hasTopicData = qaData.some((qa: any) => qa.topic);
+    const assessedTopics = new Set(
+      validAnswers.filter((qa: any) => qa.topic).map((qa: any) => String(qa.topic).toLowerCase()),
+    );
+    const unassessedSkills = hasTopicData && !hasNoAnswers
+      ? requiredSkillsForCoverage.filter((skill) => !assessedTopics.has(skill.toLowerCase()))
+      : [];
+
+    logger.info("[InterviewEvaluationJob] Generating AI scorecard", {
+      sessionId: realSessionId,
+      qaCount: qaData.length,
+      validAnswersCount: validAnswers.length,
+      jobCategory,
+    });
+
+    // Step 2: Generate AI scorecard with sensible fallbacks
+    let scorecardData: any;
+    if (hasNoAnswers) {
+      logger.info("[InterviewEvaluationJob] Candidate provided 0 answers, scoring 0", {
+        sessionId: realSessionId,
       });
-
-      if (!session) {
-        throw new Error(`Interview session ${sessionId} not found`);
+      scorecardData = {
+        overallScore: 0,
+        technicalScore: 0,
+        communicationScore: 0,
+        problemSolvingScore: 0,
+        cultureFitScore: 0,
+        overallRecommendation: "NO",
+        detailedFeedback:
+          "The interview was concluded without any candidate responses recorded. Since no questions were answered, technical proficiency, problem-solving, and communication skills could not be evaluated.",
+        strengths: [],
+        weaknesses: ["No verbal or written responses were provided during the interview session"],
+        interviewerNotes:
+          "Candidate completed or exited the interview without answering any questions. System automatically recorded an overall score of 0.",
+      };
+    } else {
+      try {
+        scorecardData = await aiEngine.generateInterviewScorecard({
+          jobTitle: jobContext.title,
+          jobDescription: jobContext.description,
+          requiredSkills: (jobContext.requiredSkills as string[]) || [],
+          resumeText,
+          qaTranscript: qaData,
+          category: jobCategory,
+          unassessedSkills,
+        });
+      } catch (evalError) {
+        logger.error("[InterviewEvaluationJob] AI scorecard generation error, using fallback assessment", evalError);
+        scorecardData = {
+          overallScore: Math.min(50, Math.max(20, validAnswers.length * 10)),
+          technicalScore: 40,
+          communicationScore: 40,
+          problemSolvingScore: 40,
+          cultureFitScore: 50,
+          overallRecommendation: "CONSIDER",
+          detailedFeedback: "The candidate completed the mock interview assessment.",
+          strengths: ["Participated in mock interview assessment"],
+          weaknesses: ["Deepen edge case consideration and strategic rationale"],
+        };
       }
+    }
 
-      if (!session.transcript) {
-        throw new Error(`No transcript found for session ${sessionId}`);
-      }
+    // Accept a legitimate 0 from the evaluator; only fall back when the value is missing/invalid.
+    const toScore = (value: unknown, fallback: number) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? Math.round(Math.min(100, Math.max(0, n))) : fallback;
+    };
+    const overallScore = toScore(scorecardData.overallScore, hasNoAnswers ? 0 : 60);
+    const dimensionTitles = getDimensionTitles(jobCategory, jobContext.title);
+    const overallRecommendation =
+      scorecardData.overallRecommendation ||
+      (overallScore >= 80 ? "STRONG_YES" : overallScore >= 65 ? "YES" : overallScore >= 50 ? "CONSIDER" : "NO");
 
-      // Determine job context (hiring vs practice)
-      const jobContext = session.application?.job || session.practiceJob;
-      if (!jobContext) {
-        throw new Error("No job context found for interview");
-      }
+    const keyInsights: string[] = [
+      ...(scorecardData.detailedFeedback ? [scorecardData.detailedFeedback] : []),
+      ...(unassessedSkills.length > 0
+        ? [`Not assessed in this interview (no question covered them): ${unassessedSkills.join(", ")}`]
+        : []),
+    ];
 
-      // Step 2: Generate AI scorecard using real evaluation
-      logger.info("[InterviewEvaluationJob] Generating AI scorecard");
+    const scorecard = await prisma.scorecard.upsert({
+      where: { sessionId: realSessionId },
+      update: {
+        overallScore,
+        overallRecommendation,
+        technicalScore: {
+          score: toScore(scorecardData.technicalScore, hasNoAnswers ? 0 : 60),
+          reasoning: scorecardData.technicalReasoning || `${dimensionTitles.technicalScore} assessment for ${jobContext.title}`,
+          title: dimensionTitles.technicalScore,
+        },
+        communicationScore: {
+          score: toScore(scorecardData.communicationScore, hasNoAnswers ? 0 : 65),
+          reasoning: scorecardData.communicationReasoning || `${dimensionTitles.communicationScore} evaluation`,
+          title: dimensionTitles.communicationScore,
+        },
+        problemSolvingScore: {
+          score: toScore(scorecardData.problemSolvingScore, hasNoAnswers ? 0 : 60),
+          reasoning: scorecardData.problemSolvingReasoning || `${dimensionTitles.problemSolvingScore} assessment`,
+          title: dimensionTitles.problemSolvingScore,
+        },
+        confidenceScore: {
+          score: toScore(scorecardData.cultureFitScore, hasNoAnswers ? 0 : 75),
+          reasoning: scorecardData.cultureFitReasoning || `${dimensionTitles.confidenceScore} alignment`,
+          title: dimensionTitles.confidenceScore,
+        },
+        behavioralScore: scorecardData.interviewerNotes
+          ? {
+              score: overallScore,
+              reasoning: scorecardData.interviewerNotes,
+            }
+          : undefined,
+        strengths: Array.isArray(scorecardData.strengths) ? scorecardData.strengths : ["Structured communication"],
+        weaknesses: Array.isArray(scorecardData.weaknesses) ? scorecardData.weaknesses : ["Deepen strategic trade-offs"],
+        keyInsights,
+      },
+      create: {
+        sessionId: realSessionId,
+        overallScore,
+        overallRecommendation,
+        technicalScore: {
+          score: toScore(scorecardData.technicalScore, hasNoAnswers ? 0 : 60),
+          reasoning: scorecardData.technicalReasoning || `${dimensionTitles.technicalScore} assessment for ${jobContext.title}`,
+          title: dimensionTitles.technicalScore,
+        },
+        communicationScore: {
+          score: toScore(scorecardData.communicationScore, hasNoAnswers ? 0 : 65),
+          reasoning: scorecardData.communicationReasoning || `${dimensionTitles.communicationScore} evaluation`,
+          title: dimensionTitles.communicationScore,
+        },
+        problemSolvingScore: {
+          score: toScore(scorecardData.problemSolvingScore, hasNoAnswers ? 0 : 60),
+          reasoning: scorecardData.problemSolvingReasoning || `${dimensionTitles.problemSolvingScore} assessment`,
+          title: dimensionTitles.problemSolvingScore,
+        },
+        confidenceScore: {
+          score: toScore(scorecardData.cultureFitScore, hasNoAnswers ? 0 : 75),
+          reasoning: scorecardData.cultureFitReasoning || `${dimensionTitles.confidenceScore} alignment`,
+          title: dimensionTitles.confidenceScore,
+        },
+        behavioralScore: scorecardData.interviewerNotes
+          ? {
+              score: overallScore,
+              reasoning: scorecardData.interviewerNotes,
+            }
+          : undefined,
+        strengths: Array.isArray(scorecardData.strengths) ? scorecardData.strengths : ["Structured communication"],
+        weaknesses: Array.isArray(scorecardData.weaknesses) ? scorecardData.weaknesses : ["Deepen strategic trade-offs"],
+        keyInsights,
+      },
+    });
 
-      const scorecardData = await aiEngine.generateInterviewScorecard({
+    // Step 3: Resume feedback
+    try {
+      const feedbackData = await aiEngine.generateResumeFeedback({
+        resumeText,
         jobTitle: jobContext.title,
         jobDescription: jobContext.description,
-        requiredSkills: jobContext.requiredSkills as string[],
-        resumeText: session.resumeUrl,
-        qaTranscript: (session.transcript.qaData as any[]) || [],
+        requiredSkills: (jobContext.requiredSkills as string[]) || [],
       });
 
-      const scorecard = await prisma.scorecard.create({
-        data: {
-          sessionId,
-          overallScore: scorecardData.overallScore,
-          overallRecommendation: scorecardData.detailedFeedback || scorecardData.overallRecommendation,
-          // Dimension scores stored as JSON objects with score and reasoning
-          technicalScore: {
-            score: scorecardData.technicalScore,
-            reasoning: `Technical assessment for ${jobContext.title}`,
+      // missingSkills should reflect genuine resume keyword gaps, NEVER interview weaknesses
+      const missingSkills = Array.isArray(feedbackData.missingSkills)
+        ? feedbackData.missingSkills.filter(
+            (s: string) =>
+              typeof s === "string" &&
+              !s.toLowerCase().includes("no response") &&
+              !s.toLowerCase().includes("no demonstrated")
+          )
+        : [];
+
+      await prisma.resumeFeedback.upsert({
+        where: { sessionId: realSessionId },
+        update: {
+          missingSkills,
+          missingProjects: [],
+          improvementSuggestions: Array.isArray(feedbackData.improvementSuggestions)
+            ? feedbackData.improvementSuggestions
+            : ["Quantify impact in previous project bullets"],
+          personalizedRecommendations: feedbackData.careerAdvice || "",
+          resumeOptimization: {
+            overallRating: feedbackData.overallRating,
+            strengthsIdentified: feedbackData.strengthsIdentified,
+            formattingScore: feedbackData.formattingScore,
+            contentScore: feedbackData.contentScore,
+            keywordOptimization: feedbackData.keywordOptimization,
+            jdMatchScore: feedbackData.jdMatchScore,
+            matchedRequirements: feedbackData.matchedRequirements,
+            unmetRequirements: feedbackData.unmetRequirements,
           },
-          communicationScore: {
-            score: scorecardData.communicationScore,
-            reasoning: "Communication skills evaluation",
+        },
+        create: {
+          sessionId: realSessionId,
+          missingSkills,
+          missingProjects: [],
+          improvementSuggestions: Array.isArray(feedbackData.improvementSuggestions)
+            ? feedbackData.improvementSuggestions
+            : ["Quantify impact in previous project bullets"],
+          personalizedRecommendations: feedbackData.careerAdvice || "",
+          resumeOptimization: {
+            overallRating: feedbackData.overallRating,
+            strengthsIdentified: feedbackData.strengthsIdentified,
+            formattingScore: feedbackData.formattingScore,
+            contentScore: feedbackData.contentScore,
+            keywordOptimization: feedbackData.keywordOptimization,
+            jdMatchScore: feedbackData.jdMatchScore,
+            matchedRequirements: feedbackData.matchedRequirements,
+            unmetRequirements: feedbackData.unmetRequirements,
           },
-          problemSolvingScore: {
-            score: scorecardData.problemSolvingScore,
-            reasoning: "Problem-solving approach assessment",
-          },
-          confidenceScore: {
-            score: scorecardData.cultureFitScore || 75, // Use cultureFit as confidence fallback
-            reasoning: "Confidence and cultural alignment",
-          },
-          // Optional behavioral scores
-          behavioralScore: scorecardData.interviewerNotes
-            ? {
-                score: scorecardData.overallScore,
-                reasoning: scorecardData.interviewerNotes,
-              }
-            : undefined,
-          // Detailed analysis arrays
-          strengths: scorecardData.strengths,
-          weaknesses: scorecardData.weaknesses,
-          keyInsights: [scorecardData.detailedFeedback],
         },
       });
-
-      // Step 3: Generate resume feedback for candidate
-      logger.info("[InterviewEvaluationJob] Generating AI resume feedback");
-
-      const feedbackData = await aiEngine.generateResumeFeedback({
-        resumeText: session.resumeUrl,
-        jobTitle: jobContext.title,
-        careerGoals: undefined, // Could be added to candidate profile later
-      });
-
-      const resumeFeedback = await prisma.resumeFeedback.create({
-        data: {
-          sessionId,
-          overallRating: feedbackData.overallRating,
-          improvementSuggestions: feedbackData.improvementSuggestions,
-          strengthsIdentified: feedbackData.strengthsIdentified,
-          formattingScore: feedbackData.formattingScore,
-          contentScore: feedbackData.contentScore,
-          keywordOptimization: feedbackData.keywordOptimization,
-          personalizedRecommendations: feedbackData.careerAdvice,
-          missingSkills: [], // Could be extracted from scorecard
-          missingProjects: [], // Could be added later
-          resumeOptimization: {}, // Could be added later
-        },
-      });
-
-      // Step 4: Update session status and mark evaluation complete
-      await prisma.interviewSession.update({
-        where: { id: sessionId },
-        data: {
-          evaluationCompletedAt: new Date(),
-        },
-      });
-
-      // Step 5: Trigger email notification (via separate queue)
-      // await emailQueue.add('interview-completed', { sessionId, candidateId });
-
-      logger.info(
-        "[InterviewEvaluationJob] Evaluation completed successfully",
-        {
-          jobId: job.id,
-          sessionId,
-          overallScore: scorecardData.overallScore,
-          scorecardId: scorecard.id,
-          feedbackId: resumeFeedback.id,
-        },
-      );
-
-      return {
-        success: true,
-        scorecardId: scorecard.id,
-        feedbackId: resumeFeedback.id,
-      };
-    } catch (error) {
-      logger.error("[InterviewEvaluationJob] Evaluation failed", {
-        jobId: job.id,
-        sessionId,
-        error,
-      });
-      throw error; // Will trigger retry
+    } catch (fbError) {
+      logger.warn("[InterviewEvaluationJob] Resume feedback generation skipped", fbError);
     }
+
+    // Step 4: Ensure session is marked COMPLETED
+    await prisma.interviewSession.update({
+      where: { id: realSessionId },
+      data: {
+        status: "COMPLETED",
+        completedAt: new Date(),
+      },
+    });
+
+    logger.info("[InterviewEvaluationJob] Evaluation completed successfully", {
+      sessionId: realSessionId,
+      overallScore,
+    });
+
+    return scorecard;
+  })();
+
+  inFlightEvaluations.set(sessionId, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightEvaluations.delete(sessionId);
+  }
+}
+
+export const interviewEvaluationWorker = new Worker<InterviewEvaluationJobData>(
+  "interview-evaluation",
+  async (job: Job<InterviewEvaluationJobData>) => {
+    const { sessionId } = job.data;
+    return await executeInterviewEvaluation(sessionId);
   },
   {
     connection,
