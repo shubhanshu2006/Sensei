@@ -32,6 +32,57 @@ export const requireRole =
  * Returns 403 if the profile is missing — typically meaning the user signed up
  * but has not completed the recruiter onboarding step.
  */
+import { prisma } from "../database/client.js";
+
+/**
+ * Ensures the authenticated user has a `RecruiterProfile`.
+ * If the user is PLATFORM_ADMIN, automatically provisions an admin recruiter profile if not present.
+ */
+export const requireRecruiterOrAdminProfile = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  if (!req.user) {
+    next(new ApiError(401, "Authentication required"));
+    return;
+  }
+
+  if (req.user.role === "PLATFORM_ADMIN") {
+    if (!req.user.recruiterProfileId) {
+      try {
+        const profile = await prisma.recruiterProfile.upsert({
+          where: { userId: req.user.id },
+          create: {
+            userId: req.user.id,
+            companyName: "Platform Admin",
+            interviewCredits: 99999,
+          },
+          update: {},
+        });
+        req.user.recruiterProfileId = profile.id;
+      } catch (err) {
+        next(err);
+        return;
+      }
+    }
+    next();
+    return;
+  }
+
+  if (!req.user.recruiterProfileId) {
+    next(
+      new ApiError(
+        403,
+        "Recruiter profile not found. Please complete your recruiter onboarding.",
+      ),
+    );
+    return;
+  }
+
+  next();
+};
+
 export const requireRecruiterProfile = (
   req: Request,
   _res: Response,

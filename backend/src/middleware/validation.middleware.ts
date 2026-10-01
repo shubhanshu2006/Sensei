@@ -67,8 +67,13 @@ export const validateQuery =
       return;
     }
 
-    // Express types req.query as ParsedQs, so we cast here.
-    req.query = result.data as typeof req.query;
+    // Express 5 defines req.query with a getter on prototype; defineProperty safely overrides it
+    Object.defineProperty(req, "query", {
+      value: result.data,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
     next();
   };
 
@@ -88,6 +93,12 @@ export const validateParams =
       return;
     }
 
-    req.params = result.data as typeof req.params;
+    // Express 5 defines req.params with a getter on prototype; defineProperty safely overrides it
+    Object.defineProperty(req, "params", {
+      value: result.data,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
     next();
   };

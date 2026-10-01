@@ -3,6 +3,7 @@ import { clerkClient } from "../config/clerk.js";
 import { prisma } from "../database/client.js";
 import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
+import { emailService } from "../services/email/EmailService.js";
 
 // authenticateUser
 
@@ -33,7 +34,7 @@ export const authenticateUser = async (
     }
 
     // 3. Load user from database with profile sub-selects
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId },
       select: {
         id: true,
@@ -49,7 +50,85 @@ export const authenticateUser = async (
       },
     });
 
-    // 4. Guard: user not found in our database (may not have completed sign-up)
+    // 4. Just-In-Time Auto-Provisioning:
+    // If user does not exist in our database yet (e.g. no webhook configured),
+    // fetch their profile directly from Clerk via CLERK_SECRET_KEY and persist them.
+    if (!user) {
+      try {
+        const clerkUser = await clerkClient.users.getUser(clerkId);
+        const primaryEmail =
+          clerkUser.emailAddresses.find(
+            (e) => e.id === clerkUser.primaryEmailAddressId,
+          )?.emailAddress || clerkUser.emailAddresses[0]?.emailAddress;
+
+        if (primaryEmail) {
+          const metaRole = (clerkUser.publicMetadata as any)?.role;
+          const role =
+            metaRole === "RECRUITER" || metaRole === "CANDIDATE" || metaRole === "ADMIN"
+              ? metaRole
+              : "CANDIDATE";
+
+          user = await prisma.user.upsert({
+            where: { clerkId },
+            update: {},
+            create: {
+              clerkId,
+              email: primaryEmail,
+              firstName: clerkUser.firstName ?? null,
+              lastName: clerkUser.lastName ?? null,
+              avatar: clerkUser.imageUrl ?? null,
+              role,
+              status: "ACTIVE",
+            },
+            select: {
+              id: true,
+              clerkId: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              role: true,
+              status: true,
+              recruiterProfile: { select: { id: true } },
+              candidateProfile: { select: { id: true } },
+              adminProfile: { select: { id: true } },
+            },
+          });
+
+          logger.info(`[AuthMiddleware] JIT auto-synced Clerk user: ${clerkId}`);
+
+          // Send welcome email if not already delivered
+          const welcomeSent = (clerkUser.publicMetadata as any)?.welcomeEmailSent;
+          if (!welcomeSent && primaryEmail) {
+            try {
+              const userName = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || undefined;
+              await emailService.sendWelcomeEmail({
+                userEmail: primaryEmail,
+                userName,
+              });
+              await clerkClient.users.updateUserMetadata(clerkId, {
+                publicMetadata: {
+                  ...(clerkUser.publicMetadata || {}),
+                  welcomeEmailSent: true,
+                },
+              });
+              logger.info(`[AuthMiddleware] Welcome email sent to JIT user: ${primaryEmail}`);
+            } catch (emailErr) {
+              logger.error("[AuthMiddleware] Failed to send welcome email to JIT user", {
+                clerkId,
+                email: primaryEmail,
+                error: emailErr,
+              });
+            }
+          }
+        }
+      } catch (syncError) {
+        logger.warn(`[AuthMiddleware] Could not auto-sync Clerk user: ${clerkId}`, {
+          error: syncError,
+        });
+      }
+    }
+
+    // 5. Guard: user still not found in database
     if (!user) {
       next(
         new ApiError(
@@ -89,6 +168,66 @@ export const authenticateUser = async (
       candidateProfileId: user.candidateProfile?.id,
       adminProfileId: user.adminProfile?.id,
     };
+
+    // 7. Enforce Device Fingerprint Lock for Candidates (prevent multi-account switching)
+    const rawFp = req.headers["x-device-fingerprint"];
+    const deviceFingerprint = (
+      typeof rawFp === "string" ? rawFp : Array.isArray(rawFp) ? rawFp[0] : ""
+    )?.trim();
+
+    if (
+      deviceFingerprint &&
+      user.role === "CANDIDATE" &&
+      user.candidateProfile?.id
+    ) {
+      // Check if this device is bound to a different candidate account
+      const conflictingProfile = await prisma.candidateProfile.findFirst({
+        where: {
+          deviceFingerprint,
+          id: { not: user.candidateProfile.id },
+        },
+        include: {
+          user: { select: { email: true } },
+        },
+      });
+
+      if (conflictingProfile) {
+        logger.warn("[AuthMiddleware] Account switching blocked on device", {
+          attemptedUserId: user.id,
+          attemptedEmail: user.email,
+          deviceFingerprint,
+          boundToEmail: conflictingProfile.user?.email,
+        });
+
+        next(
+          new ApiError(
+            403,
+            "This device is already associated with an existing Sensei account. Multiple accounts or account switching is not permitted on the same device.",
+          ),
+        );
+        return;
+      }
+
+      // If current candidate doesn't have device bound yet, bind it now!
+      const currentCandidate = await prisma.candidateProfile.findUnique({
+        where: { id: user.candidateProfile.id },
+        select: { deviceFingerprint: true },
+      });
+
+      if (!currentCandidate?.deviceFingerprint) {
+        await prisma.candidateProfile.update({
+          where: { id: user.candidateProfile.id },
+          data: { deviceFingerprint },
+        });
+        logger.info(
+          "[AuthMiddleware] Bound device fingerprint to candidate profile",
+          {
+            candidateId: user.candidateProfile.id,
+            deviceFingerprint,
+          },
+        );
+      }
+    }
 
     next();
   } catch (error) {
