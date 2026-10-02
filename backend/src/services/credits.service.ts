@@ -398,39 +398,54 @@ class CreditsService {
     }
 
     const amountInPaise = pack.amountInr * 100;
-    const razorpay = this.getRazorpay();
+    try {
+      const razorpay = this.getRazorpay();
 
-    const razorpayOrder = await razorpay.orders.create({
-      amount: amountInPaise,
-      currency: "INR",
-      receipt: `cand_${Date.now()}_${candidateId.substring(0, 6)}`,
-      notes: {
+      const razorpayOrder = await razorpay.orders.create({
+        amount: amountInPaise,
+        currency: "INR",
+        receipt: `cand_${Date.now()}`,
+        notes: {
+          candidateId,
+          packageId: pack.id,
+          credits: pack.credits.toString(),
+          candidateEmail: candidate.user?.email || "",
+        },
+      });
+
+      logger.info("[CreditsService] Candidate Razorpay order created", {
         candidateId,
         packageId: pack.id,
-        credits: pack.credits.toString(),
-        candidateEmail: candidate.user.email,
-      },
-    });
+        razorpayOrderId: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+      });
 
-    logger.info("[CreditsService] Candidate Razorpay order created", {
-      candidateId,
-      packageId: pack.id,
-      razorpayOrderId: razorpayOrder.id,
-      amount: razorpayOrder.amount,
-    });
+      return {
+        orderId: razorpayOrder.id,
+        razorpayOrderId: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+        currency: "INR",
+        keyId: config.payment.razorpayKeyId,
+        package: pack,
+        user: {
+          name: `${candidate.user?.firstName || ""} ${candidate.user?.lastName || ""}`.trim() || "Candidate",
+          email: candidate.user?.email || "",
+        },
+      };
+    } catch (error: any) {
+      logger.error("[CreditsService] Candidate Razorpay order creation failed", {
+        candidateId,
+        packageId,
+        error: error?.error || error?.message || error,
+        statusCode: error?.statusCode,
+      });
 
-    return {
-      orderId: razorpayOrder.id,
-      razorpayOrderId: razorpayOrder.id,
-      amount: razorpayOrder.amount,
-      currency: "INR",
-      keyId: config.payment.razorpayKeyId,
-      package: pack,
-      user: {
-        name: `${candidate.user.firstName || ""} ${candidate.user.lastName || ""}`.trim(),
-        email: candidate.user.email,
-      },
-    };
+      const message =
+        error?.error?.description ||
+        error?.message ||
+        "Failed to create Razorpay payment order. Please check Razorpay API keys or credentials.";
+      throw new ApiError(error?.statusCode || 500, message);
+    }
   }
 
   /**
@@ -467,7 +482,60 @@ class CreditsService {
       throw new ApiError(400, "Payment signature verification failed");
     }
 
-    const updated = await this.addCandidateCredits(candidateId, pack.credits);
+    // Check if this payment was already processed (e.g. by webhook or duplicate request)
+    const existing = await prisma.creditPurchaseRequest.findFirst({
+      where: { utrNumber: data.razorpayPaymentId },
+    });
+
+    if (existing) {
+      const candidate = await prisma.candidateProfile.findUnique({
+        where: { id: candidateId },
+        select: { practiceCredits: true, practiceCreditsUsed: true },
+      });
+      return {
+        practiceCredits: candidate?.practiceCredits || 0,
+        practiceCreditsUsed: candidate?.practiceCreditsUsed || 0,
+        package: pack,
+        message: `Successfully purchased ${pack.credits} practice credits!`,
+      };
+    }
+
+    const candidate = await prisma.candidateProfile.findUnique({
+      where: { id: candidateId },
+      select: { userId: true },
+    });
+
+    const [updated] = await prisma.$transaction([
+      prisma.candidateProfile.update({
+        where: { id: candidateId },
+        data: {
+          practiceCredits: { increment: pack.credits },
+        },
+        select: {
+          practiceCredits: true,
+          practiceCreditsUsed: true,
+        },
+      }),
+      ...(candidate?.userId
+        ? [
+            prisma.creditPurchaseRequest.create({
+              data: {
+                userId: candidate.userId,
+                userRole: "CANDIDATE",
+                packageId: pack.id,
+                packageName: pack.label,
+                credits: pack.credits,
+                amount: pack.amountInr,
+                currency: "INR",
+                utrNumber: data.razorpayPaymentId,
+                status: "APPROVED",
+                adminNote: `Automated Razorpay verification (Order: ${data.razorpayOrderId})`,
+                approvedAt: new Date(),
+              },
+            }),
+          ]
+        : []),
+    ]);
 
     logger.info("[CreditsService] Candidate payment verified and credits added", {
       candidateId,

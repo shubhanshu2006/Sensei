@@ -27,7 +27,6 @@ import {
   Layers,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { QrPaymentDialog } from "@/components/credits/QrPaymentDialog";
 import { useMyCreditRequests } from "@/lib/api/queries/creditRequests";
 
 declare global {
@@ -38,7 +37,6 @@ declare global {
 
 export default function CreditsPage() {
   const [loadingPackageId, setLoadingPackageId] = useState<string | null>(null);
-  const [selectedQrPackage, setSelectedQrPackage] = useState<CreditPackage | null>(null);
 
   const { data: balance, isLoading: balanceLoading } = useCreditBalance();
   const { data: packagesData, isLoading: packagesLoading } = useCreditPackages();
@@ -60,15 +58,8 @@ export default function CreditsPage() {
     ? paymentsData
     : (paymentsData as any)?.payments || [];
 
-  // Default UPI QR flow
-  const handleBuyCredits = (packageId: string) => {
-    const pkg = packages.find((p) => p.id === packageId);
-    if (!pkg) return;
-    setSelectedQrPackage(pkg);
-  };
-
-  // Preserved Razorpay flow
-  const handleRazorpayBuyCredits = async (packageId: string) => {
+  // Direct Razorpay checkout flow
+  const handleBuyCredits = async (packageId: string) => {
     const pkg = packages.find((p) => p.id === packageId);
     if (!pkg) return;
 
@@ -94,7 +85,7 @@ export default function CreditsPage() {
       // 3. Initialize Razorpay Checkout
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.amount * 100, // paise
+        amount: order.amount, // in paise
         currency: order.currency || "INR",
         name: "Sensei AI",
         description: pkg.label,
@@ -105,7 +96,7 @@ export default function CreditsPage() {
             razorpayOrderId: response.razorpay_order_id,
             razorpayPaymentId: response.razorpay_payment_id,
             razorpaySignature: response.razorpay_signature,
-            orderId: order.id,
+            orderId: (order as any).orderId || order.id,
           });
         },
         theme: {
@@ -249,32 +240,23 @@ export default function CreditsPage() {
           </div>
         </div>
 
-        {/* UPI Credit Requests & UTR Verification */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                UPI QR Payment Requests & Status
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Track status of your submitted UTR numbers for interview credits
-              </p>
+        {/* Previous Payment Requests (if any exist) */}
+        {myRequests && myRequests.length > 0 && (
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Previous Payment Requests
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Track verification status of past submitted requests
+                </p>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs">
+                {myRequests.length} Requests
+              </Badge>
             </div>
-            <Badge variant="outline" className="font-mono text-xs">
-              {myRequests?.length || 0} Requests
-            </Badge>
-          </div>
 
-          {requestsLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-12" />
-              <Skeleton className="h-12" />
-            </div>
-          ) : !myRequests || myRequests.length === 0 ? (
-            <div className="py-6 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl">
-              No pending or submitted UPI requests. Click any package above to pay via UPI QR.
-            </div>
-          ) : (
             <div className="divide-y divide-slate-100">
               {myRequests.map((req: any) => (
                 <div key={req.id} className="py-3 flex items-center justify-between">
@@ -312,8 +294,8 @@ export default function CreditsPage() {
                 </div>
               ))}
             </div>
-          )}
-        </Card>
+          </Card>
+        )}
 
         {/* Razorpay Completed Payment History */}
         <Card className="p-6">
@@ -353,26 +335,6 @@ export default function CreditsPage() {
             </div>
           )}
         </Card>
-
-        {/* QR Payment Dialog */}
-        {selectedQrPackage && (
-          <QrPaymentDialog
-            open={!!selectedQrPackage}
-            onOpenChange={(isOpen) => {
-              if (!isOpen) setSelectedQrPackage(null);
-            }}
-            packageId={selectedQrPackage.id}
-            packageName={selectedQrPackage.label}
-            credits={selectedQrPackage.credits}
-            amountInr={selectedQrPackage.amountInr}
-            userRole="RECRUITER"
-            onFallbackToRazorpay={() => {
-              const pkgId = selectedQrPackage.id;
-              setSelectedQrPackage(null);
-              handleRazorpayBuyCredits(pkgId);
-            }}
-          />
-        )}
       </div>
     </DashboardLayout>
   );

@@ -5,6 +5,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
 import { config } from "../config/index.js";
 import { queueEmail } from "./queue/EmailJob.js";
+import { CANDIDATE_CREDIT_PACKS } from "./credits.service.js";
 
 // Interfaces
 
@@ -509,6 +510,71 @@ class PaymentsService {
       });
 
       if (!payment) {
+        const notes = paymentEntity.notes || {};
+        if (notes.candidateId && notes.packageId) {
+          logger.info("[PaymentsService] Handling candidate payment capture via webhook", {
+            candidateId: notes.candidateId,
+            packageId: notes.packageId,
+            razorpayPaymentId,
+          });
+
+          // Check if already processed by frontend verify callback
+          const existing = await prisma.creditPurchaseRequest.findFirst({
+            where: { utrNumber: razorpayPaymentId },
+          });
+
+          if (existing) {
+            logger.info("[PaymentsService] Candidate payment already processed", {
+              razorpayPaymentId,
+            });
+            return;
+          }
+
+          const pack = CANDIDATE_CREDIT_PACKS.find((p) => p.id === notes.packageId);
+          if (pack) {
+            const candidate = await prisma.candidateProfile.findUnique({
+              where: { id: notes.candidateId },
+              select: { userId: true },
+            });
+
+            if (candidate) {
+              await prisma.$transaction([
+                prisma.candidateProfile.update({
+                  where: { id: notes.candidateId },
+                  data: {
+                    practiceCredits: { increment: pack.credits },
+                  },
+                }),
+                ...(candidate.userId
+                  ? [
+                      prisma.creditPurchaseRequest.create({
+                        data: {
+                          userId: candidate.userId,
+                          userRole: "CANDIDATE",
+                          packageId: pack.id,
+                          packageName: pack.label,
+                          credits: pack.credits,
+                          amount: pack.amountInr,
+                          currency: "INR",
+                          utrNumber: razorpayPaymentId,
+                          status: "APPROVED",
+                          adminNote: `Automated Razorpay Webhook (Order: ${razorpayOrderId})`,
+                          approvedAt: new Date(),
+                        },
+                      }),
+                    ]
+                  : []),
+              ]);
+
+              logger.info("[PaymentsService] Candidate credits successfully credited via webhook", {
+                candidateId: notes.candidateId,
+                creditsAdded: pack.credits,
+              });
+            }
+          }
+          return;
+        }
+
         logger.error("[PaymentsService] Payment not found for order", {
           razorpayOrderId,
         });

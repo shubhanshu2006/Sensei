@@ -136,10 +136,17 @@ export const errorHandler = (
   // 5. Unknown / unexpected error ---------------------------------------------
   const isProduction = process.env.NODE_ENV === "production";
 
+  const errorDetail =
+    err instanceof Error
+      ? err.message
+      : typeof err === "object" && err !== null
+        ? JSON.stringify(err)
+        : String(err);
+
   logger.error("Unhandled error", {
     path: req.path,
     method: req.method,
-    error: err instanceof Error ? err.message : String(err),
+    error: errorDetail,
     stack: err instanceof Error ? err.stack : undefined,
   });
 
@@ -148,9 +155,7 @@ export const errorHandler = (
     success: false,
     message: isProduction
       ? "An unexpected error occurred. Please try again later."
-      : err instanceof Error
-        ? err.message
-        : "Internal server error",
+      : (err as any)?.error?.description || (err as any)?.message || errorDetail || "Internal server error",
   } satisfies ErrorResponseBody);
 };
 

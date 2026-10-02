@@ -60,10 +60,10 @@ const envSchema = z.object({
   // Payment (Razorpay & UPI QR)
   RAZORPAY_KEY_ID: z.string().startsWith("rzp_"),
   RAZORPAY_KEY_SECRET: z.string().min(1),
-  RAZORPAY_WEBHOOK_SECRET: z.string().startsWith("whsec_"),
+  RAZORPAY_WEBHOOK_SECRET: z.string().min(1),
   PAYMENT_UPI_ID: z.string().default("sensei@upi"),
   PAYMENT_UPI_NAME: z.string().default("Sensei AI"),
-  PAYMENT_MODE: z.enum(["QR_CODE", "RAZORPAY"]).default("QR_CODE"),
+  PAYMENT_MODE: z.enum(["QR_CODE", "RAZORPAY"]).default("RAZORPAY"),
 
   // Email (Brevo)
   BREVO_API_KEY: z.string().min(1),

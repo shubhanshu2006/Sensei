@@ -54,11 +54,8 @@ const DEFAULT_PACKAGES: CandidateCreditPackage[] = [
   },
 ];
 
-import { QrPaymentDialog } from "@/components/credits/QrPaymentDialog";
-
 export function BuyCreditsDialog({ open, onOpenChange }: BuyCreditsDialogProps) {
   const [selectedPackageId, setSelectedPackageId] = useState<string>("cand_10");
-  const [showQrDialog, setShowQrDialog] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const { data: packagesData, isLoading: packagesLoading } = useCandidateCreditPackages();
   const { data: creditsData } = useCandidatePracticeCredits();
@@ -72,8 +69,8 @@ export function BuyCreditsDialog({ open, onOpenChange }: BuyCreditsDialogProps) 
 
   const selectedPkg = packages.find((p) => p.id === selectedPackageId) || packages[0];
 
-  // Preserved Razorpay purchase flow
-  const handleRazorpayPurchase = async () => {
+  // Direct Razorpay purchase flow
+  const handlePurchase = async () => {
     if (!selectedPackageId) return;
     const pkg = packages.find((p) => p.id === selectedPackageId);
     if (!pkg) return;
@@ -141,12 +138,7 @@ export function BuyCreditsDialog({ open, onOpenChange }: BuyCreditsDialogProps) 
     }
   };
 
-  const handlePurchase = () => {
-    setShowQrDialog(true);
-  };
-
   return (
-    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <div className="p-6 sm:p-7 max-w-xl w-full">
         {/* Header */}
@@ -268,20 +260,5 @@ export function BuyCreditsDialog({ open, onOpenChange }: BuyCreditsDialogProps) 
         </div>
       </div>
     </Dialog>
-
-    <QrPaymentDialog
-      open={showQrDialog}
-      onOpenChange={(isOpen) => {
-        setShowQrDialog(isOpen);
-        if (!isOpen) onOpenChange(false);
-      }}
-      packageId={selectedPkg.id}
-      packageName={selectedPkg.label}
-      credits={selectedPkg.credits}
-      amountInr={selectedPkg.amountInr}
-      userRole="CANDIDATE"
-      onFallbackToRazorpay={handleRazorpayPurchase}
-    />
-    </>
   );
 }

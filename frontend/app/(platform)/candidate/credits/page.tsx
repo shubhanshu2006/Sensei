@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import { QrPaymentDialog } from "@/components/credits/QrPaymentDialog";
 import { useMyCreditRequests } from "@/lib/api/queries/creditRequests";
 
 declare global {
@@ -66,7 +65,6 @@ const DEFAULT_PACKAGES: CandidateCreditPackage[] = [
 
 export default function CandidateCreditsPage() {
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
-  const [selectedQrPackage, setSelectedQrPackage] = useState<CandidateCreditPackage | null>(null);
   const { data: creditsData, isLoading: creditsLoading } = useCandidatePracticeCredits();
   const { data: packagesData, isLoading: packagesLoading } = useCandidateCreditPackages();
   const { data: myRequests, isLoading: requestsLoading } = useMyCreditRequests();
@@ -79,13 +77,8 @@ export default function CandidateCreditsPage() {
   const creditsUsed = creditsData?.practiceCreditsUsed ?? 0;
   const availableCredits = Math.max(0, totalCredits - creditsUsed);
 
-  // Default flow: open UPI QR payment dialog
-  const handleBuy = (pkg: CandidateCreditPackage) => {
-    setSelectedQrPackage(pkg);
-  };
-
-  // Preserved Razorpay flow
-  const handleRazorpayBuy = async (pkg: CandidateCreditPackage) => {
+  // Direct Razorpay payment flow
+  const handleBuy = async (pkg: CandidateCreditPackage) => {
     setPurchasingId(pkg.id);
     try {
       // 1. Create Razorpay order on backend
@@ -403,37 +396,24 @@ export default function CandidateCreditsPage() {
           </div>
         </Card>
 
-        {/* UPI Credit Requests & UTR Verification Status */}
-        <Card className="p-6 sm:p-7 rounded-3xl border border-slate-200/80 bg-white shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-orange-500" />
-                <span>UPI Payment Requests & UTR Status</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Track verification progress of your submitted UPI payments
-              </p>
+        {/* Past Payment Requests (if any exist) */}
+        {myRequests && myRequests.length > 0 && (
+          <Card className="p-6 sm:p-7 rounded-3xl border border-slate-200/80 bg-white shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-orange-500" />
+                  <span>Previous Payment Requests</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Track verification status of past submitted requests
+                </p>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs">
+                {myRequests.length} Total
+              </Badge>
             </div>
-            <Badge variant="outline" className="font-mono text-xs">
-              {myRequests?.length || 0} Total
-            </Badge>
-          </div>
 
-          {requestsLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-14 rounded-2xl" />
-              <Skeleton className="h-14 rounded-2xl" />
-            </div>
-          ) : !myRequests || myRequests.length === 0 ? (
-            <div className="text-center py-8 border border-dashed border-slate-200 rounded-2xl">
-              <Clock className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-              <p className="text-sm font-medium text-slate-600">No UPI requests submitted yet</p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                When you pay via UPI QR and submit a UTR number, it will appear here.
-              </p>
-            </div>
-          ) : (
             <div className="divide-y divide-slate-100">
               {myRequests.map((req: any) => (
                 <div
@@ -477,7 +457,7 @@ export default function CandidateCreditsPage() {
                     {req.status === "PENDING" && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                         <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                        Pending Super Admin Approval
+                        Pending Approval
                       </span>
                     )}
                     {req.status === "APPROVED" && (
@@ -496,27 +476,7 @@ export default function CandidateCreditsPage() {
                 </div>
               ))}
             </div>
-          )}
-        </Card>
-
-        {/* Dynamic QR Payment Dialog */}
-        {selectedQrPackage && (
-          <QrPaymentDialog
-            open={!!selectedQrPackage}
-            onOpenChange={(isOpen) => {
-              if (!isOpen) setSelectedQrPackage(null);
-            }}
-            packageId={selectedQrPackage.id}
-            packageName={selectedQrPackage.label}
-            credits={selectedQrPackage.credits}
-            amountInr={selectedQrPackage.amountInr}
-            userRole="CANDIDATE"
-            onFallbackToRazorpay={() => {
-              const pkg = selectedQrPackage;
-              setSelectedQrPackage(null);
-              handleRazorpayBuy(pkg);
-            }}
-          />
+          </Card>
         )}
       </div>
     </DashboardLayout>
