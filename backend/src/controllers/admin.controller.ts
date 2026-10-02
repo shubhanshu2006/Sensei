@@ -25,6 +25,26 @@ class AdminController {
   });
 
   /**
+   * GET /admin/analytics
+   * Returns comprehensive platform analytics, trends, and breakdown metrics.
+   * Query: { period?: 'today' | 'week' | 'month' | 'year' | 'all' }
+   */
+  getAnalytics = asyncHandler(async (req: Request, res: Response) => {
+    const period = (req.query.period as any) || "month";
+    const data = await adminService.getAnalytics(period);
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          data,
+          "Analytics data retrieved successfully",
+        ),
+      );
+  });
+
+  /**
    * GET /admin/users
    * Returns a paginated, filtered list of all users with their role profiles.
    *

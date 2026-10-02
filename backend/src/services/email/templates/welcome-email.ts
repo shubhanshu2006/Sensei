@@ -6,7 +6,7 @@ export interface WelcomeEmailData {
 
 export const welcomeEmailTemplate = (data: WelcomeEmailData) => {
   const name = data.userName?.trim() || "there";
-  const dashboardLink = data.dashboardLink || "https://sensei-prep.com/candidate/dashboard";
+  const dashboardLink = data.dashboardLink || "https://sensei-ecru.vercel.app/";
 
   const orangeColor = "#ff6a00";
   const pinkColor = "#ec1684";

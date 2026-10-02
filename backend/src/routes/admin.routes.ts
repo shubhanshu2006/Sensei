@@ -31,6 +31,13 @@ const adminGuard = [
 router.get("/stats", ...adminGuard, adminController.getPlatformStats);
 
 /**
+ * GET /admin/analytics
+ * Returns comprehensive platform analytics, trends, and breakdown metrics.
+ * Query: { period?: 'today' | 'week' | 'month' | 'year' | 'all' }
+ */
+router.get("/analytics", ...adminGuard, adminController.getAnalytics);
+
+/**
  * GET /admin/users
  * Returns a paginated, filtered list of all platform users.
  * Query: { page?, limit?, role?, status?, search? }
