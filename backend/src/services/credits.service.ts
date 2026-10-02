@@ -4,6 +4,31 @@ import { logger } from "../utils/logger.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { config } from "../config/index.js";
+import { getRedisClient } from "../config/redis.js";
+
+// In-memory payment deduplication cache (backed by Redis when available)
+const inMemoryProcessedPayments = new Set<string>();
+
+export async function isPaymentProcessed(paymentId: string): Promise<boolean> {
+  if (inMemoryProcessedPayments.has(paymentId)) return true;
+  try {
+    const redis = getRedisClient();
+    const exists = await redis.get(`payment_processed:${paymentId}`);
+    return !!exists;
+  } catch {
+    return false;
+  }
+}
+
+export async function markPaymentProcessed(paymentId: string): Promise<void> {
+  inMemoryProcessedPayments.add(paymentId);
+  try {
+    const redis = getRedisClient();
+    await redis.set(`payment_processed:${paymentId}`, "1", "EX", 60 * 60 * 24 * 30); // 30 days
+  } catch (err) {
+    logger.warn("[CreditsService] Failed to cache payment id in Redis", { paymentId, err });
+  }
+}
 
 // Credit pack constants
 
@@ -482,12 +507,9 @@ class CreditsService {
       throw new ApiError(400, "Payment signature verification failed");
     }
 
-    // Check if this payment was already processed (e.g. by webhook or duplicate request)
-    const existing = await prisma.creditPurchaseRequest.findFirst({
-      where: { utrNumber: data.razorpayPaymentId },
-    });
-
-    if (existing) {
+    // Deduplicate against duplicate requests or concurrent webhook processing
+    const alreadyDone = await isPaymentProcessed(data.razorpayPaymentId);
+    if (alreadyDone) {
       const candidate = await prisma.candidateProfile.findUnique({
         where: { id: candidateId },
         select: { practiceCredits: true, practiceCreditsUsed: true },
@@ -500,42 +522,18 @@ class CreditsService {
       };
     }
 
-    const candidate = await prisma.candidateProfile.findUnique({
-      where: { id: candidateId },
-      select: { userId: true },
-    });
+    await markPaymentProcessed(data.razorpayPaymentId);
 
-    const [updated] = await prisma.$transaction([
-      prisma.candidateProfile.update({
-        where: { id: candidateId },
-        data: {
-          practiceCredits: { increment: pack.credits },
-        },
-        select: {
-          practiceCredits: true,
-          practiceCreditsUsed: true,
-        },
-      }),
-      ...(candidate?.userId
-        ? [
-            prisma.creditPurchaseRequest.create({
-              data: {
-                userId: candidate.userId,
-                userRole: "CANDIDATE",
-                packageId: pack.id,
-                packageName: pack.label,
-                credits: pack.credits,
-                amount: pack.amountInr,
-                currency: "INR",
-                utrNumber: data.razorpayPaymentId,
-                status: "APPROVED",
-                adminNote: `Automated Razorpay verification (Order: ${data.razorpayOrderId})`,
-                approvedAt: new Date(),
-              },
-            }),
-          ]
-        : []),
-    ]);
+    const updated = await prisma.candidateProfile.update({
+      where: { id: candidateId },
+      data: {
+        practiceCredits: { increment: pack.credits },
+      },
+      select: {
+        practiceCredits: true,
+        practiceCreditsUsed: true,
+      },
+    });
 
     logger.info("[CreditsService] Candidate payment verified and credits added", {
       candidateId,
