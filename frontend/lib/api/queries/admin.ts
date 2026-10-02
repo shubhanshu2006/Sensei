@@ -5,9 +5,46 @@ import toast from "react-hot-toast";
 export const adminKeys = {
   all: ["admin"] as const,
   stats: () => [...adminKeys.all, "stats"] as const,
+  analytics: (period?: string) => [...adminKeys.all, "analytics", period] as const,
   users: (filters?: any) => [...adminKeys.all, "users", filters] as const,
   practiceJobs: (filters?: any) => [...adminKeys.all, "practice-jobs", filters] as const,
 };
+
+export interface AdminAnalyticsData {
+  period: "today" | "week" | "month" | "year" | "all";
+  summary: {
+    users: { total: number; inPeriod: number; growth: number };
+    jobs: { total: number; inPeriod: number; growth: number };
+    applications: { total: number; inPeriod: number; growth: number };
+    revenue: { total: number; inPeriod: number; growth: number };
+  };
+  trends: {
+    users: Array<{ label: string; fullMonth: string; users: number; heightPercentage: number }>;
+    revenue: Array<{ label: string; fullMonth: string; revenue: number; heightPercentage: number }>;
+  };
+  performance: {
+    totalInterviews: number;
+    completedInterviews: number;
+    interviewSuccessRate: number;
+    avgDurationMinutes: number;
+    avgOverallScore: number;
+    candidateSatisfaction: string;
+  };
+  topCompanies: Array<{ id: string; name: string; jobs: number; color: string; percentage: number }>;
+  topSkills: Array<{ skill: string; count: number; demand: number }>;
+}
+
+export function useAdminAnalytics(period: "today" | "week" | "month" | "year" | "all" = "month") {
+  return useQuery({
+    queryKey: adminKeys.analytics(period),
+    queryFn: async () => {
+      const { data } = await apiClient.get<AdminAnalyticsData>("/admin/analytics", {
+        params: { period },
+      });
+      return data;
+    },
+  });
+}
 
 export function useAdminStats() {
   return useQuery({
